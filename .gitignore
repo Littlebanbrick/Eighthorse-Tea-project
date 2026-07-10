@@ -216,3 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- Project-specific ---
+
+# SQLite runtime database: generated from seeds via seed.py, not a source of truth.
+# See CLAUDE.md / README.md data strategy.
+backend/data/*.db
+backend/data/*.db-journal
+
+# Claude Code: local-only settings. Shared settings.json / agents/ / skills/ stay in VCS.
+.claude/settings.local.json
