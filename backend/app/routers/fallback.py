@@ -5,7 +5,11 @@ P2：占位接口（video-asset / translate / image/generate / audio/generate
      / markets / audience-references）统一返回 fallback，避免 404。
 """
 
+import functools
+import re
+
 from fastapi import APIRouter, Request
+from fastapi.responses import RedirectResponse
 
 from app import responses
 from app.schemas import FallbackRequest
@@ -79,9 +83,69 @@ def audience_references():
 # ---------------------------------------------------------------------------
 
 
+def _registered_paths(app) -> set[str]:
+    """已注册路由的 path 集合（去尾斜杠归一），来自 OpenAPI schema 的 paths。
+
+    不遍历 app.routes 内部结构：新版 FastAPI 把 include_router 存成 _IncludedRouter
+    （path=None、无 .routes），递归收集会漏掉全部业务路由。改用 app.openapi()['paths']
+    ——它是 FastAPI 暴露已注册路由的稳定接口，键即去尾斜杠的规范路径
+    （如 /api/teas/{tea_id}/knowledge），参数占位 {tea_id} 保留，可被 _compile_route
+    编译成 [^/]+ 正则用于动态段比对。
+    """
+    paths: set[str] = set()
+    try:
+        schema = app.openapi()
+    except Exception:
+        schema = {"paths": {}}
+    for p in schema.get("paths", {}):
+        paths.add(p.rstrip("/"))
+    return paths
+
+
+# catch-all 自身模式：app.openapi() 会把 /{path:path} 收为 /api/{path}，
+# 它匹配任意单段，会让"真未知路由"自匹配后重定向到自己（死循环）。这里显式排除。
+_CATCH_ALL_PATTERN = "/api/{path}"
+
+
+@functools.lru_cache(maxsize=None)
+def _compile_route(pattern: str) -> re.Pattern:
+    """把 FastAPI 路径模式编译成锚定正则。
+
+    {param} 段匹配 [^/]+，其余字面量逐段 re.escape 后拼接（避免正则注入）。
+    如 /api/teas/{tea_id}/knowledge → ^/api/teas/[^/]+/knowledge$。
+    用于把具体 URL 与动态段路由模式比对（catch-all 收到的尾斜杠请求需重定向）。
+    """
+    parts = re.split(r"(\{[^/]+\})", pattern.rstrip("/"))
+    src: list[str] = []
+    for part in parts:
+        if not part:
+            continue
+        if part.startswith("{") and part.endswith("}"):
+            src.append(r"[^/]+")
+        else:
+            src.append(re.escape(part))
+    return re.compile("^" + "".join(src) + "$")
+
+
 @router.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 def catch_all_api(path: str, request: Request):
-    """捕获所有未匹配的 /api/* 请求，返回 fallback（fallback_reason=api_not_implemented）。"""
+    """捕获所有未匹配的 /api/* 请求。
+
+    本路由挂在 prefix="/api" 下，path 是去掉 "/api/" 后的部分
+    （如 "demo-routes/" 或 "teas/tieguanyin_001/knowledge/"）。
+
+    - 若带尾斜杠的请求其实命中某已注册路由（含动态段路由 /teas/{tea_id}/knowledge/），
+      则 302 重定向到无尾斜杠的规范形式，修复"真实路由被 catch-all 误吞成 fallback"。
+    - 否则返回 fallback（fallback_reason=api_not_implemented）。
+    """
+    normalized = path.rstrip("/")
+    target = f"/api/{normalized}"
+    for registered in _registered_paths(request.app):
+        if registered == _CATCH_ALL_PATTERN:
+            continue  # 跳过 catch-all 自身，避免真未知路由自匹配重定向死循环
+        if _compile_route(registered).match(target):
+            return RedirectResponse(url=target, status_code=302)
+
     return responses.fallback_response(
         title="接口暂未开放",
         message="该接口尚未在 Demo 后端中实现。请确认是否属于后续功能。",
