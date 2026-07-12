@@ -15,6 +15,10 @@ COPY app ./app
 COPY data ./data
 COPY scripts ./scripts
 
+# 灌表：从 data/seeds/*.yaml 生成 data/tea.db（读真源 + LLM 输出缓存表）。
+# data/tea.db 被 gitignore，镜像构建时现灌，不依赖宿主机产物。
+RUN python scripts/seed.py --reset
+
 RUN chown -R app:app /app
 USER app
 

@@ -1,8 +1,8 @@
 """SQLAlchemy engine + Base + DB 路径。
 
-最小运行时（阶段二第一步）：仅供 scripts/seed.py 和 tests 使用。运行时
-（main.py）仍走内存 data_loader，不查 DB —— 本模块在 main.py 启动路径上
-不被 import，不产生任何运行时开销。
+运行时读路径已切库：data_loader 的 getter 查 backend/data/tea.db（由
+seed.py --reset 灌表），写路径经 output_store 查/写 generated_outputs 表。
+本模块在 main.py 启动路径上被 data_loader / output_store import。
 
 DB 路径硬编码 backend/data/tea.db（与 data_loader.SEEDS_DIR 同款写法），
 已被 .gitignore 覆盖。多环境配置等真需要时再加 config 项。

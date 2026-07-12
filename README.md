@@ -8,7 +8,7 @@
 铁观音 × 图片物料 ×（国内链 + 跨文化链）
 ```
 
-后端已实现 P0 Demo 接口。数据来自 `backend/data/seeds/*.yaml` 的静态 seed；三个生成接口（国内表达 / 跨文化表达 / 营销物料）已接入 LLM（基于 OpenAI 兼容 SDK，默认指向 GLM，可经 `.env` 切换），未配置 LLM key 或调用失败时透明退回 seed 预置表达（mock 兜底）。真实生图 / 视频生成与 SQLite 持久化暂未接入，仍走 fallback 或 seed。
+后端已实现 P0 Demo 接口。数据源头是 `backend/data/seeds/*.yaml` 静态 seed；运行时读路径查 `backend/data/tea.db`（由 `seed.py --reset` 灌表），写路径经 `output_store` 查/写 `generated_outputs` 表作 LLM 输出缓存。三个生成接口（国内表达 / 跨文化表达 / 营销物料）已接入 LLM（基于 OpenAI 兼容 SDK，默认指向 GLM，可经 `.env` 切换），未配置 LLM key 或调用失败时透明退回 seed 预置表达（mock 兜底）。真实生图 / 视频生成暂未接入，仍走 fallback。
 
 ## 当前能力
 
@@ -37,8 +37,8 @@ GET  /api/health-llm        # 调试：确认 LLM 是否接上
 ```text
 backend/
   app/                 FastAPI 后端代码
-  data/seeds/          当前 Demo 的 YAML seed 数据
-  scripts/seed.py      后续接入 SQLite 的占位脚本
+  data/seeds/          当前 Demo 的 YAML seed 数据（数据源头）
+  scripts/seed.py      从 YAML 灌表到 SQLite（运行前置步骤）
   tests/               pytest 测试套件
   requirements.txt     运行时 Python 依赖
   requirements-dev.txt 开发/测试依赖（pytest、httpx）
@@ -62,6 +62,7 @@ Python 3.11+
 ```bash
 cd backend
 pip install -r requirements.txt
+python scripts/seed.py --reset   # 灌表（fresh clone 必跑一次，生成 data/tea.db）
 uvicorn app.main:app --reload
 ```
 
@@ -98,6 +99,8 @@ Docker Compose
 docker compose up --build backend
 ```
 
+镜像构建时会自动跑 `python scripts/seed.py --reset` 灌表，容器内 `data/tea.db` 自带，无需宿主机预灌。
+
 后台运行：
 
 ```bash
@@ -130,12 +133,13 @@ http://localhost:8000/health
 当前版本用于 Demo 联调，尚未接入：
 
 ```text
-SQLite / SQLAlchemy 持久化
 真实图片生成 API
 真实视频生成 API
 前端服务容器
 生产环境鉴权与安全配置
 ```
+
+SQLite 持久化已接入（读路径查 `data/tea.db`、写路径缓存 `generated_outputs` 表）；`data/tea.db` 由 `seed.py --reset` 生成、被 gitignore，不手动维护。
 
 LLM 已接入但可选：未在 `backend/.env` 配置 `LLM_API_KEY` / `LLM_BASE_URL` 时，三个生成接口自动走 seed 兜底，行为与未接 LLM 时一致。
 
