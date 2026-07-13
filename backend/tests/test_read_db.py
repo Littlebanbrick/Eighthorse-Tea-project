@@ -237,6 +237,78 @@ def test_list_cross_cultural_terms_shape():
 
 
 # ---------------------------------------------------------------------------
+# 成分 → 口感 映射（第 1→2 层桥接）
+# ---------------------------------------------------------------------------
+
+
+def test_list_component_flavor_links_shape():
+    links = data_loader.list_component_flavor_links(TEA_ID)
+    assert isinstance(links, list) and len(links) == 3  # 赛珍珠 3 条
+    for lk in links:
+        for k in (
+            "component",
+            "component_category",
+            "flavor_key",
+            "flavor_label",
+            "flavor_dimension",
+            "mechanism",
+            "relationship",
+            "evidence",
+            "confidence",
+            "notes",
+        ):
+            assert k in lk
+        assert lk["component_category"] in ("aroma_compound", "taste_compound", "process_proxy")
+        assert lk["relationship"] in ("primary_driver", "contributes_to", "participant")
+        assert lk["confidence"] in ("high", "medium", "low")
+        # evidence 明细：按 seed 顺序展开，每条 shape 完整
+        assert isinstance(lk["evidence"], list) and lk["evidence"]
+        for ev in lk["evidence"]:
+            for key in ("id", "source_type", "source", "confidence", "note"):
+                assert key in ev
+            assert ev["confidence"] in ("high", "medium", "low")
+        # flavor_dimension：flavor_key 指向该茶现成 dimension 时应 join 到 label/intensity
+        if lk["flavor_key"]:
+            assert lk["flavor_dimension"] is not None
+            assert "label_zh" in lk["flavor_dimension"]
+            assert isinstance(lk["flavor_dimension"]["intensity"], int)
+
+
+def test_list_component_flavor_links_mixed_confidence():
+    """三茶应覆盖 medium（直接支持）与 low（品类代理）两类置信度。"""
+    from app.data_loader import list_component_flavor_links
+
+    for tea in ("BAMA_SZZ_TGY_NX", "BAMA_NY_WRT_DHP", "BAMA_DH_BT_JJM"):
+        links = list_component_flavor_links(tea)
+        assert len(links) == 3
+        confs = {lk["confidence"] for lk in links}
+        assert "medium" in confs  # 每茶至少一条直接支持
+
+
+def test_list_component_flavor_links_jjm_has_linalool():
+    """金骏眉花蜜香应挂芳樟醇等（Lin 2025 直接支持），不挂铁观音。"""
+    links = data_loader.list_component_flavor_links("BAMA_DH_BT_JJM")
+    honey = next(lk for lk in links if lk["flavor_key"] == "honeyed_sweetness")
+    assert "芳樟醇" in honey["component"]
+    ev_ids = [ev["id"] for ev in honey["evidence"]]
+    assert "evidence_lin_2025_wuyi_bt" in ev_ids
+
+
+def test_list_component_flavor_links_tgy_orchid_not_linalool():
+    """铁观音兰花香挂橙花叔醇等（wang_2023 直接支持），不挂芳樟醇。"""
+    links = data_loader.list_component_flavor_links("BAMA_SZZ_TGY_NX")
+    orchid = next(lk for lk in links if lk["flavor_key"] == "floral")
+    assert "芳樟醇" not in orchid["component"]
+    assert "橙花叔醇" in orchid["component"]
+    ev_ids = [ev["id"] for ev in orchid["evidence"]]
+    assert "evidence_wang_2023_oolong" in ev_ids
+
+
+def test_list_component_flavor_links_missing_tea():
+    assert data_loader.list_component_flavor_links("nonexistent") == []
+
+
+# ---------------------------------------------------------------------------
 # 枚举派生：markets / audience_references
 # ---------------------------------------------------------------------------
 

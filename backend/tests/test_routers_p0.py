@@ -68,6 +68,48 @@ def test_get_flavor_profile(client):
         assert isinstance(dim["evidence_ids"], list)
 
 
+def test_get_component_flavor(client):
+    """成分追溯：返回该茶成分→口感映射，每条带证据溯源。"""
+    resp = client.get(f"/api/teas/{TEA_ID}/component-flavor")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["success"] is True
+    assert body["meta"]["fallback"] is False
+    d = body["data"]
+    assert d["tea_id"] == TEA_ID
+    assert isinstance(d["links"], list) and d["links"]
+    lk = d["links"][0]
+    for k in (
+        "component",
+        "component_category",
+        "flavor_key",
+        "flavor_label",
+        "flavor_dimension",
+        "mechanism",
+        "relationship",
+        "evidence",
+        "confidence",
+        "notes",
+    ):
+        assert k in lk
+    # flavor_dimension 对齐该茶 dimension（flavor_key 非空时）
+    if lk["flavor_key"]:
+        assert lk["flavor_dimension"] is not None
+        assert isinstance(lk["flavor_dimension"]["intensity"], int)
+    # 证据溯源：evidence 非空，每条挂 id/source/confidence
+    assert isinstance(lk["evidence"], list) and lk["evidence"]
+    for ev in lk["evidence"]:
+        assert ev["confidence"] in ("high", "medium", "low")
+
+
+def test_component_flavor_not_found(client):
+    resp = client.get("/api/teas/nonexistent_tea/component-flavor")
+    assert resp.status_code == 200  # 业务错误不走 HTTP 4xx
+    body = resp.json()
+    assert body["success"] is False
+    assert body["error"]["code"] == "TEA_NOT_FOUND"
+
+
 def test_tea_not_found(client):
     resp = client.get("/api/teas/nonexistent_tea/knowledge")
     assert resp.status_code == 200  # 业务错误不走 HTTP 4xx

@@ -25,6 +25,7 @@ from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from app.database import DB_PATH, make_engine, make_session
 from app.models import (
     Asset,
+    ComponentFlavorLink,
     CrossCulturalTerm,
     DemoRoute,
     EvidenceSource,
@@ -369,3 +370,80 @@ def list_cross_cultural_terms() -> list[dict]:
     with make_session(_current_read_engine()) as s:
         rows = s.execute(select(CrossCulturalTerm)).scalars().all()
     return [_row_to_dict(r) for r in rows]
+
+
+@_safe_query(default=[])
+def list_component_flavor_links(tea_id: str) -> list[dict]:
+    """某茶的 成分→口感 映射列表（第 1→2 层桥接，非纵向追溯链）。
+
+    每条展开 evidence_ids → evidence 明细（复用 get_knowledge 的 evidence_map 模式），
+    并按 flavor_key join 该茶 flavor_profile.dimensions 取 label_zh/label_en/intensity，
+    缺失（flavor_key 不指向现成 dimension）则 flavor_dimension=null。
+
+    返回每条 shape：
+        component / component_category / flavor_key / flavor_label /
+        flavor_dimension / mechanism / relationship / evidence / confidence / notes
+    """
+    with make_session(_current_read_engine()) as s:
+        rows = s.execute(
+            select(ComponentFlavorLink).where(ComponentFlavorLink.tea_id == tea_id)
+        ).scalars().all()
+        if not rows:
+            return []
+
+        # 该茶 flavor_profile 的 dimensions → dim_map（按 key 索引）
+        profile_row = s.execute(
+            select(FlavorProfile).where(FlavorProfile.tea_id == tea_id)
+        ).scalar_one_or_none()
+        dim_map: dict[str, dict] = {}
+        if profile_row is not None and profile_row.dimensions:
+            for d in profile_row.dimensions:
+                dim_map[d.get("key")] = {
+                    "label_zh": d.get("label_zh"),
+                    "label_en": d.get("label_en"),
+                    "intensity": d.get("intensity"),
+                }
+
+        # 所有 links 的 evidence_ids 并集 → 一次查出建 evidence_map
+        all_evidence_ids: list[str] = []
+        for r in rows:
+            all_evidence_ids.extend(r.evidence_ids or [])
+        evidence_map: dict[str, dict] = {}
+        if all_evidence_ids:
+            ev_rows = s.execute(
+                select(EvidenceSource).where(EvidenceSource.id.in_(all_evidence_ids))
+            ).scalars().all()
+            evidence_map = {e.id: _row_to_dict(e) for e in ev_rows}
+
+    links: list[dict] = []
+    for r in rows:
+        d = _row_to_dict(r)
+        evidence_ids = d.get("evidence_ids") or []
+        # evidence 明细按 evidence_ids 声明顺序展开，保持 seed 顺序、丢无匹配项
+        evidence = [
+            {
+                "id": eid,
+                "source_type": evidence_map[eid]["source_type"],
+                "source": evidence_map[eid]["source"],
+                "confidence": evidence_map[eid]["confidence"],
+                "note": evidence_map[eid].get("notes", ""),
+            }
+            for eid in evidence_ids
+            if eid in evidence_map
+        ]
+        flavor_key = d.get("flavor_key")
+        links.append(
+            {
+                "component": d.get("component"),
+                "component_category": d.get("component_category"),
+                "flavor_key": flavor_key,
+                "flavor_label": d.get("flavor_label"),
+                "flavor_dimension": dim_map.get(flavor_key) if flavor_key else None,
+                "mechanism": d.get("mechanism"),
+                "relationship": d.get("relationship"),
+                "evidence": evidence,
+                "confidence": d.get("confidence"),
+                "notes": d.get("notes"),
+            }
+        )
+    return links

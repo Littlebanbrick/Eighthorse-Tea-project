@@ -162,6 +162,7 @@ GET  /api/demo-routes
 GET  /api/teas
 GET  /api/teas/{tea_id}/knowledge
 GET  /api/teas/{tea_id}/flavor-profile
+GET  /api/teas/{tea_id}/component-flavor
 POST /api/teas/{tea_id}/domestic-expression
 POST /api/teas/{tea_id}/cross-cultural-expression
 POST /api/teas/{tea_id}/marketing-asset

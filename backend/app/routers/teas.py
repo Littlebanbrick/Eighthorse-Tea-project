@@ -35,3 +35,17 @@ def get_flavor_profile(tea_id: str):
     if profile is None:
         return responses.error("TEA_NOT_FOUND", "未找到对应茶品")
     return responses.success(profile)
+
+
+@router.get("/teas/{tea_id}/component-flavor")
+def get_component_flavor(tea_id: str):
+    """成分 → 口感 映射（第 1→2 层桥接；UI"成分追溯"板块数据源）。
+
+    返回该茶的成分→口感论断列表，每条挂证据溯源（evidence_ids 指向论文）。
+    注意：这是第 1→2 层桥接关系的物化，不是纵向追溯链的一层——"追溯"指
+    每条论断的证据溯源，不进 trace_links 表、不新增 level。
+    """
+    if data_loader.get_tea(tea_id) is None:
+        return responses.error("TEA_NOT_FOUND", "未找到对应茶品")
+    links = data_loader.list_component_flavor_links(tea_id)
+    return responses.success({"tea_id": tea_id, "links": links})
