@@ -67,7 +67,8 @@ def test_image_generate_success(client: TestClient, monkeypatch):
         lambda **kw: (
             {"url": "https://example.com/img.png",
              "model": "cogview-4", "size": kw.get("size") or "1024x1024",
-             "style": kw.get("style") or image_service.DEFAULT_STYLE},
+             "style": kw.get("style") or image_service.DEFAULT_STYLE,
+             "scene": kw.get("scene") or image_service.DEFAULT_SCENE},
             "ok",
         ),
     )
@@ -124,7 +125,8 @@ def test_image_generate_minimal_prompt(client: TestClient, monkeypatch):
         image_service, "generate_image",
         lambda **kw: (
             {"url": "https://example.com/x.png", "model": "cogview-4", "size": "1024x1024",
-             "style": kw.get("style") or image_service.DEFAULT_STYLE},
+             "style": kw.get("style") or image_service.DEFAULT_STYLE,
+             "scene": kw.get("scene") or image_service.DEFAULT_SCENE},
             "ok",
         ),
     )
@@ -144,7 +146,8 @@ def test_image_generate_style_echo(client: TestClient, monkeypatch):
         image_service, "generate_image",
         lambda **kw: (
             {"url": "https://example.com/s.png", "model": "cogview-4", "size": "1024x1024",
-             "style": kw.get("style") or image_service.DEFAULT_STYLE},
+             "style": kw.get("style") or image_service.DEFAULT_STYLE,
+             "scene": kw.get("scene") or image_service.DEFAULT_SCENE},
             "ok",
         ),
     )
@@ -157,3 +160,20 @@ def test_image_generate_style_echo(client: TestClient, monkeypatch):
     # 不传 → 默认 fresh
     r3 = client.post("/api/image/generate", json={"prompt": "p"})
     assert r3.json()["data"]["style"] == "fresh"
+
+
+def test_image_generate_scene_echo(client: TestClient, monkeypatch):
+    """传 scene=landscape/product → data.scene 回显；不传 → 默认 closeup。"""
+    _patch_get_settings(monkeypatch, ENABLED_SETTINGS)
+    monkeypatch.setattr(
+        image_service, "generate_image",
+        lambda **kw: (
+            {"url": "https://example.com/sc.png", "model": "cogview-4", "size": "1024x1024",
+             "style": kw.get("style") or image_service.DEFAULT_STYLE,
+             "scene": kw.get("scene") or image_service.DEFAULT_SCENE},
+            "ok",
+        ),
+    )
+    assert client.post("/api/image/generate", json={"prompt": "p", "scene": "landscape"}).json()["data"]["scene"] == "landscape"
+    assert client.post("/api/image/generate", json={"prompt": "p", "scene": "product"}).json()["data"]["scene"] == "product"
+    assert client.post("/api/image/generate", json={"prompt": "p"}).json()["data"]["scene"] == "closeup"

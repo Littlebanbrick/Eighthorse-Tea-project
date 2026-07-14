@@ -21,7 +21,7 @@ def generate_image(body: ImageGenerateRequest):
     成功返回智谱临时图片链接（30 天有效）。
     """
     result, status = image_service.generate_image(
-        prompt=body.prompt, size=body.size, style=body.style
+        prompt=body.prompt, size=body.size, style=body.style, scene=body.scene
     )
     if result is None:
         if status == "disabled":
@@ -45,6 +45,7 @@ def generate_image(body: ImageGenerateRequest):
         "model": result["model"],
         "size": result["size"],
         "style": result["style"],
+        "scene": result["scene"],
     }
     if body.tea_id:
         data["tea_id"] = body.tea_id
