@@ -66,7 +66,8 @@ def test_image_generate_success(client: TestClient, monkeypatch):
         image_service, "generate_image",
         lambda **kw: (
             {"url": "https://example.com/img.png",
-             "model": "cogview-4", "size": kw.get("size") or "1024x1024"},
+             "model": "cogview-4", "size": kw.get("size") or "1024x1024",
+             "style": kw.get("style") or image_service.DEFAULT_STYLE},
             "ok",
         ),
     )
@@ -122,7 +123,8 @@ def test_image_generate_minimal_prompt(client: TestClient, monkeypatch):
     monkeypatch.setattr(
         image_service, "generate_image",
         lambda **kw: (
-            {"url": "https://example.com/x.png", "model": "cogview-4", "size": "1024x1024"},
+            {"url": "https://example.com/x.png", "model": "cogview-4", "size": "1024x1024",
+             "style": kw.get("style") or image_service.DEFAULT_STYLE},
             "ok",
         ),
     )
@@ -133,3 +135,25 @@ def test_image_generate_minimal_prompt(client: TestClient, monkeypatch):
     # 不传 tea_id / route_id → data 不含这俩键
     assert "tea_id" not in body["data"]
     assert "route_id" not in body["data"]
+
+
+def test_image_generate_style_echo(client: TestClient, monkeypatch):
+    """传 style=fresh / style=business → data.style 回显；不传 → 默认。"""
+    _patch_get_settings(monkeypatch, ENABLED_SETTINGS)
+    monkeypatch.setattr(
+        image_service, "generate_image",
+        lambda **kw: (
+            {"url": "https://example.com/s.png", "model": "cogview-4", "size": "1024x1024",
+             "style": kw.get("style") or image_service.DEFAULT_STYLE},
+            "ok",
+        ),
+    )
+    # 显式 fresh
+    r1 = client.post("/api/image/generate", json={"prompt": "p", "style": "fresh"})
+    assert r1.json()["data"]["style"] == "fresh"
+    # 显式 business
+    r2 = client.post("/api/image/generate", json={"prompt": "p", "style": "business"})
+    assert r2.json()["data"]["style"] == "business"
+    # 不传 → 默认 fresh
+    r3 = client.post("/api/image/generate", json={"prompt": "p"})
+    assert r3.json()["data"]["style"] == "fresh"

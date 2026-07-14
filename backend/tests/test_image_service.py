@@ -79,40 +79,104 @@ def test_generate_image_success(monkeypatch):
     assert result["url"] == "https://example.com/ok.png"
     assert result["model"] == "cogview-4"
     assert result["size"] == "1024x1024"
+    assert result["style"] == image_service.DEFAULT_STYLE, "不传 style 应回显默认 fresh"
     # 调用参数含 model/prompt/n/size/quality + extra_body(watermark)
     sent = calls[0]
     assert sent["model"] == "cogview-4"
     assert sent["n"] == 1
     assert sent["quality"] == "hd"
     assert sent["extra_body"] == {"watermark_enabled": False}
-    # prompt 被富化：原"赛珍珠铁观音海报"+质量后缀，必须含中性画质标记 + 负面词
+    # prompt 被富化：原"赛珍珠铁观音海报"+ 默认 fresh 风格片段 + 技术后缀
     assert "赛珍珠铁观音海报" in sent["prompt"]
     # 商务信号词已清除（实测会把出图拽向商务老气风）
     assert "Professional commercial product photography" not in sent["prompt"]
     assert "elegant composition" not in sent["prompt"]
-    # 中性画质 + 构图 + 负面词仍在
+    # 默认 fresh 风格片段关键词 + 中性画质 + 构图 + 负面词仍在
+    assert "fresh" not in sent["prompt"] or "morning daylight" in sent["prompt"]  # fresh 片段内容
+    assert "morning daylight" in sent["prompt"]
     assert "photorealistic" in sent["prompt"]
     assert "No text, no watermark" in sent["prompt"]
     # 写了一条缓存
     assert output_store.count_rows() == 1
 
 
+def test_generate_image_business_style(monkeypatch):
+    """显式传 style=business → 富化含商务片段，business 信号词进 prompt。"""
+    _patch_get_settings(monkeypatch, ENABLED_SETTINGS)
+    calls = []
+
+    class _FakeImages:
+        def generate(self, **kw):
+            calls.append(kw)
+            return _fake_images_response("https://example.com/biz.png")
+
+    monkeypatch.setattr(image_service, "_client", lambda: type("C", (), {"images": _FakeImages()})())
+    result, status = image_service.generate_image(prompt="铁观音海报", style="business")
+    assert status == "ok"
+    assert result["style"] == "business"
+    sent = calls[0]["prompt"]
+    # business 片段关键词（低光照 / 深色奢华背景）
+    assert "low-key studio lighting" in sent
+    assert "dark charcoal" in sent
+    # 商务美学信号词仍不出现（这些是禁词，business 片段也不含）
+    assert "Professional commercial product photography" not in sent
+    assert "elegant composition" not in sent
+
+
+def test_generate_image_unknown_style_falls_back(monkeypatch):
+    """未知 style → 回退默认 fresh，不抛、不白屏。"""
+    _patch_get_settings(monkeypatch, ENABLED_SETTINGS)
+    calls = []
+
+    class _FakeImages:
+        def generate(self, **kw):
+            calls.append(kw)
+            return _fake_images_response("https://example.com/fb.png")
+
+    monkeypatch.setattr(image_service, "_client", lambda: type("C", (), {"images": _FakeImages()})())
+    result, status = image_service.generate_image(prompt="海报", style="nonexistent_style")
+    assert status == "ok"
+    assert result["style"] == image_service.DEFAULT_STYLE
+    assert "morning daylight" in calls[0]["prompt"], "未知 style 应用默认 fresh 片段"
+
+
+def test_generate_image_style_in_cache_key(monkeypatch):
+    """同 prompt+size、不同 style → 不命中彼此缓存（style 进了哈希键）。"""
+    _patch_get_settings(monkeypatch, ENABLED_SETTINGS)
+
+    class _FakeImages:
+        def generate(self, **kw):
+            return _fake_images_response("https://example.com/" + kw["prompt"][:1] + ".png")
+
+    monkeypatch.setattr(image_service, "_client", lambda: type("C", (), {"images": _FakeImages()})())
+    image_service.generate_image(prompt="同款茶", style="fresh")
+    # 第二次换 business，即使 prompt 相同也不应命中 fresh 的缓存
+    r2, s2 = image_service.generate_image(prompt="同款茶", style="business")
+    assert s2 == "ok"
+    assert r2["style"] == "business", "换 style 必须重新生图（缓存键含 style）"
+
+
 def test_enrich_prompt_deterministic():
     """富化是纯函数、确定性：同输入两次结果一致；空 prompt 原样返回。"""
-    a = image_service._enrich_prompt("茶海报")
-    b = image_service._enrich_prompt("茶海报")
-    assert a == b, "同 prompt 富化结果应一致"
-    # 含质量后缀关键词（中性画质 + 负面词），不含已清除的商务信号词
+    a = image_service._enrich_prompt("茶海报", "fresh")
+    b = image_service._enrich_prompt("茶海报", "fresh")
+    assert a == b, "同 prompt + style 富化结果应一致"
+    # 含默认 fresh 风格片段 + 中性画质 + 负面词，不含商务信号词
+    assert "morning daylight" in a
     assert "photorealistic" in a
     assert "No text, no watermark" in a
     assert "Professional commercial product photography" not in a
     assert "elegant composition" not in a
+    # business 风格片段含商务光照信号，但不含已禁的美学词
+    biz = image_service._enrich_prompt("茶海报", "business")
+    assert "low-key studio lighting" in biz
+    assert "elegant composition" not in biz
     # 去末尾句号后补后缀，避免双句号
-    assert image_service._enrich_prompt("海报。") == image_service._enrich_prompt("海报")
-    assert image_service._enrich_prompt("Poster.") == image_service._enrich_prompt("Poster")
+    assert image_service._enrich_prompt("海报。", "fresh") == image_service._enrich_prompt("海报", "fresh")
+    assert image_service._enrich_prompt("Poster.", "fresh") == image_service._enrich_prompt("Poster", "fresh")
     # 空 prompt 原样返回（不拼后缀）
-    assert image_service._enrich_prompt("") == ""
-    assert image_service._enrich_prompt("   ") == ""
+    assert image_service._enrich_prompt("", "fresh") == ""
+    assert image_service._enrich_prompt("   ", "fresh") == ""
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +189,9 @@ def test_generate_image_cache_hit(monkeypatch):
     _patch_get_settings(monkeypatch, ENABLED_SETTINGS)
     # 先预写一条新鲜的缓存（created_at = now，必在 29 天内）
     now_iso = datetime.now(timezone.utc).isoformat()
-    input_hash = output_store.compute_input_hash(ImageResult, "海报prompt", "1024x1024")
+    input_hash = output_store.compute_input_hash(
+        ImageResult, "海报prompt", "1024x1024", image_service.DEFAULT_STYLE
+    )
     output_store.persist(
         output_type="image",
         tea_id=None,
@@ -135,6 +201,7 @@ def test_generate_image_cache_hit(monkeypatch):
             "url": "https://example.com/cached.png",
             "model": "cogview-4",
             "size": "1024x1024",
+            "style": image_service.DEFAULT_STYLE,
             "created_at": now_iso,  # 刚写，新鲜
         },
     )
@@ -156,7 +223,9 @@ def test_generate_image_cache_expired(monkeypatch):
     _patch_get_settings(monkeypatch, ENABLED_SETTINGS)
     # 预写一条 40 天前的缓存（已过期）
     expired_iso = (datetime.now(timezone.utc) - timedelta(days=40)).isoformat()
-    input_hash = output_store.compute_input_hash(ImageResult, "旧海报", "1024x1024")
+    input_hash = output_store.compute_input_hash(
+        ImageResult, "旧海报", "1024x1024", image_service.DEFAULT_STYLE
+    )
     output_store.persist(
         output_type="image",
         tea_id=None,

@@ -53,17 +53,41 @@ FALLBACK_TIMEOUT = "timeout"
 FALLBACK_PARSE = "parse_error"
 FALLBACK_GATEWAY = "gateway_error"
 
-# 确定性质量后缀：富化 CogView 出图，加在用户 prompt 之后。
-# 不依赖 LLM、零幻觉、确定性。含正向画质词 + 负面词（避免常见翻车）。
-# quality / watermark_enabled 走请求体参数，不在此串里。
-# 注意：刻意不写 "Professional commercial product photography" / "elegant composition"
-# 这类企业画册美学词——实测会把 CogView 拽向"商务老气"风。这里只给中性构图 + 光照 +
-# 画质 + 负面词，让出图回归茶本身审美。风格化（光照/色调/氛围）见 style 片段（后续 P2）。
-_QUALITY_SUFFIX = (
+# 确定性质量后缀 + 风格片段：富化 CogView 出图，加在用户 prompt 之后。
+# 不依赖 LLM、零幻觉、确定性。quality / watermark_enabled 走请求体参数。
+#
+# 三层职责切分（避免光照在 seed 与片段里打架）：
+#   - seed / LLM image_prompt：物体 + 构图（9:16 / 中下部 / 文字安全区）+ 负面词
+#   - _STYLE_FRAGMENTS[style]：光照 + 色调 + 氛围 + 背景（风格化轴）
+#   - _TECHNICAL_SUFFIX：构图护栏 + 画质 + 负面词（对任意 prompt 都成立的兜底）
+# P1 已证明：prompt 残留 "Professional commercial product photography / elegant
+# composition" 这类企业画册美学词会把 CogView 拽向商务老气风。故默认走 fresh
+# 清新风，business 风格片段才显式给商务信号（要商务时调用方显式传 style=business）。
+
+DEFAULT_STYLE = "fresh"
+
+# 风格片段：只写光照 / 色调 / 氛围 / 背景，不写构图与画质（避免与 seed / 技术后缀
+# 冲突）。每个片段是一段英文短语，不含句末标点（由 _enrich_prompt 统一拼接）。
+_STYLE_FRAGMENTS: dict[str, str] = {
+    "fresh": (
+        "soft diffused morning daylight, fresh green and ivory color palette, "
+        "airy clean background with light wood and fresh foliage, bright clean "
+        "and natural mood"
+    ),
+    "business": (
+        "dramatic low-key studio lighting, dark charcoal and warm gold color "
+        "palette, dark premium background with deep walnut wood and subtle gold "
+        "accents, serious authoritative luxury commercial mood"
+    ),
+}
+
+# 技术后缀：构图护栏 + 画质 + 负面词。刻意不含"专业商品摄影 / elegant composition"
+# 这类企业画册美学词（实测把出图拽向商务老气风）。风格化由 _STYLE_FRAGMENTS 负责。
+_TECHNICAL_SUFFIX = (
     ". Vertical 9:16 mobile poster composition, main subject in the lower-middle "
     "frame, clean uncluttered text-safe area occupying about 25-35% of the upper "
-    "frame for later headline overlay, soft natural lighting, shallow depth of "
-    "field, sharp focus on the subject, high detail, 8k, photorealistic. "
+    "frame for later headline overlay, shallow depth of field, sharp focus on the "
+    "subject, high detail, 8k, photorealistic. "
     "No text, no watermark, no generated text, no logo, no distorted proportions, no extra objects."
 )
 
@@ -80,11 +104,26 @@ def _client() -> OpenAI:
     )
 
 
-def _enrich_prompt(prompt: str) -> str:
-    """给精短 prompt 套确定性质量后缀（光照/构图/画质/负面词）。
+def _normalize_style(style: str | None) -> str:
+    """归一化 style：lower / strip；未知或 None → DEFAULT_STYLE。
 
-    marketing-asset.image_prompt 是一句话精短描述（人读友好），直接喂 CogView
-    出图细节不足。本函数加固定后缀富化，零 LLM、零幻觉。
+    未知 style 不抛、走默认 + log（生图无 seed 兜底，不能因 style 拼错而白屏）。
+    """
+    if not style:
+        return DEFAULT_STYLE
+    s = style.strip().lower()
+    if s not in _STYLE_FRAGMENTS:
+        logger.warning("未知 style=%r，回退默认 %s", style, DEFAULT_STYLE)
+        return DEFAULT_STYLE
+    return s
+
+
+def _enrich_prompt(prompt: str, style: str) -> str:
+    """给精短 prompt 套风格片段 + 确定性技术后缀（构图/画质/负面词）。
+
+    marketing-asset.image_prompt 是画面物体描述（茶具/茶汤/道具/场景/构图），
+    光照/色调/氛围由 style 片段注入——这样同一茶 prompt × N 风格，无 seed 爆炸、
+    不调 LLM、确定性。零 LLM、零幻觉。
     """
     prompt = (prompt or "").strip()
     if not prompt:
@@ -92,30 +131,36 @@ def _enrich_prompt(prompt: str) -> str:
     # 去掉末尾句号再补后缀，避免双句号
     if prompt.endswith(("。", ".")):
         prompt = prompt[:-1]
-    return prompt + _QUALITY_SUFFIX
+    frag = _STYLE_FRAGMENTS[style]
+    return f"{prompt}, {frag}{_TECHNICAL_SUFFIX}"
 
 
-def generate_image(*, prompt: str, size: str | None = None) -> tuple[dict | None, str]:
+def generate_image(*, prompt: str, size: str | None = None, style: str | None = None) -> tuple[dict | None, str]:
     """调 CogView-4 生图。
 
     Args:
-        prompt: 图片生成 prompt（通常来自 marketing-asset.image_prompt，精短）
+        prompt: 图片生成 prompt（通常来自 marketing-asset.image_prompt，画面物体描述）
         size: 输出尺寸，空则用配置默认 image_size
+        style: 风格（fresh / business）；空或未知 → DEFAULT_STYLE（fresh）
 
     Returns:
         (result | None, status)。
-        成功 → ({"url","model","size"}, "ok")；否则 → (None, fallback_reason)。
+        成功 → ({"url","model","size","style"}, "ok")；否则 → (None, fallback_reason)。
     """
     s = get_settings()
     if not s.image_enabled:
         return None, FALLBACK_DISABLED
 
     used_size = size or s.image_size
-    enriched_prompt = _enrich_prompt(prompt)
+    effective_style = _normalize_style(style)
+    enriched_prompt = _enrich_prompt(prompt, effective_style)
 
     # 先查缓存：命中且未过期即复用，跳过 CogView 调用。
-    # 缓存键用原始 prompt + size（富化后缀固定，不计入键——后缀微调不产生新维度）。
-    input_hash = output_store.compute_input_hash(ImageResult, prompt, used_size)
+    # 缓存键用原始 prompt + size + style（技术后缀固定，不计入键；style 必须计入，
+    # 否则切风格会命中旧风格缓存——缓存投毒）。
+    input_hash = output_store.compute_input_hash(
+        ImageResult, prompt, used_size, effective_style
+    )
     cached = output_store.get_cached(input_hash)
     if cached is not None and _cache_fresh(cached):
         return _build_result(cached, s.image_model, used_size), "ok"
@@ -166,7 +211,10 @@ def generate_image(*, prompt: str, size: str | None = None) -> tuple[dict | None
         return None, FALLBACK_PARSE
 
     now = datetime.now(timezone.utc).isoformat()
-    content = {"url": url, "model": s.image_model, "size": used_size, "created_at": now}
+    content = {
+        "url": url, "model": s.image_model, "size": used_size,
+        "style": effective_style, "created_at": now,
+    }
     output_store.persist(
         output_type="image",
         tea_id=None,
@@ -174,8 +222,8 @@ def generate_image(*, prompt: str, size: str | None = None) -> tuple[dict | None
         input_hash=input_hash,
         content=content,
     )
-    logger.info("生图成功 model=%s size=%s quality=%s prompt_chars=%d",
-                s.image_model, used_size, s.image_quality, len(enriched_prompt))
+    logger.info("生图成功 model=%s size=%s style=%s quality=%s prompt_chars=%d",
+                s.image_model, used_size, effective_style, s.image_quality, len(enriched_prompt))
     return _build_result(content, s.image_model, used_size), "ok"
 
 
@@ -197,9 +245,10 @@ def _cache_fresh(cached: dict) -> bool:
 
 
 def _build_result(content: dict, model: str, size: str) -> dict:
-    """从缓存内容组装返回结果（命中缓存时模型/尺寸沿用缓存值）。"""
+    """从缓存内容组装返回结果（命中缓存时模型/尺寸/风格沿用缓存值）。"""
     return {
         "url": content["url"],
         "model": content.get("model") or model,
         "size": content.get("size") or size,
+        "style": content.get("style"),
     }

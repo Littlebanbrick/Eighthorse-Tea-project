@@ -79,19 +79,21 @@ def reset_engine() -> None:
 
 
 def compute_input_hash(
-    output_model: type, system_prompt: str, user_prompt: str
+    output_model: type, *parts: str
 ) -> str:
-    """缓存键：sha256(模型类名 + system + user)。
+    """缓存键：sha256(模型类名 + \\x00-join(parts))。
 
     用 \\x00 分隔防前后拼接歧义。模型类名隔离不同 schema，保证三种生成接口
-    的哈希空间互不相交。
+    的哈希空间互不相交。varargs 形式让 image_service 可传 (prompt, size, style)
+    把 style 纳入缓存键——切风格不命中彼此缓存。
+
+    旧的三参调用 compute_input_hash(Model, system, user) 仍兼容。
     """
     h = hashlib.sha256()
     h.update(output_model.__name__.encode("utf-8"))
-    h.update(b"\x00")
-    h.update((system_prompt or "").encode("utf-8"))
-    h.update(b"\x00")
-    h.update((user_prompt or "").encode("utf-8"))
+    for p in parts:
+        h.update(b"\x00")
+        h.update((p or "").encode("utf-8"))
     return h.hexdigest()
 
 

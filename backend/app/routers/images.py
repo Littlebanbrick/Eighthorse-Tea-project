@@ -20,7 +20,9 @@ def generate_image(body: ImageGenerateRequest):
     未配置 IMAGE_* / 调用失败 → fallback（生图无 seed 兜底，区别于文本三接口）。
     成功返回智谱临时图片链接（30 天有效）。
     """
-    result, status = image_service.generate_image(prompt=body.prompt, size=body.size)
+    result, status = image_service.generate_image(
+        prompt=body.prompt, size=body.size, style=body.style
+    )
     if result is None:
         if status == "disabled":
             return responses.fallback_response(
@@ -42,6 +44,7 @@ def generate_image(body: ImageGenerateRequest):
         "prompt": body.prompt,
         "model": result["model"],
         "size": result["size"],
+        "style": result["style"],
     }
     if body.tea_id:
         data["tea_id"] = body.tea_id

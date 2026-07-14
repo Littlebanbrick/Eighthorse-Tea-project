@@ -75,6 +75,7 @@ class MarketingAssetRequest(BaseModel):
 class ImageGenerateRequest(BaseModel):
     prompt: str = Field(..., description="图片生成 prompt（通常来自 marketing-asset.image_prompt）")
     size: str | None = Field(default=None, description="如 1024x1024 / 1440x720；空用配置默认")
+    style: str | None = Field(default=None, description="风格：fresh / business；空用默认 fresh")
     tea_id: str | None = Field(default=None, description="溯源用，不参与生图")
     route_id: str | None = Field(default=None, description="溯源用，不参与生图")
 

@@ -14,9 +14,9 @@
 
 三个文本生成接口（国内表达 / 跨文化表达 / 营销物料）已接入 LLM（OpenAI 兼容 SDK，默认指向 GLM，经 `backend/.env` 配置）。LLM 负责文本字段生成，ID / trace / source / 雷达数值仍由 seed 提供；未配置 key 或调用失败时透明退回 seed 预置表达（mock 兜底），不白屏。真实生图不调 LLM，由 image_service 直接调 CogView-4（见下段）。
 
-真实生图已接入：`POST /api/image/generate` 调智谱 CogView-4（`quality=hd` + 关闭水印），返回临时图片 URL（30 天有效，同 prompt+size 按 input_hash 缓存 29 天）。与 `marketing-asset` 两步联调——物料层只产 `image_prompt`，生图拆为独立接口（解耦耗时）。生图时后端给精短 prompt 套确定性质量后缀（竖版构图 / 光照 / 画质 / 负面词；刻意不含 `Professional commercial product photography` / `elegant composition` 这类企业画册美学词——实测会把 CogView 拽向商务老气风），不调 LLM、零幻觉、确定性；`marketing-asset.image_prompt` 字段仍保持精短。生图凭证独立走 `IMAGE_*`（`backend/.env`），与 `LLM_*` 相互独立、不回退——当前 `LLM_*` 多半指向 DeepSeek，不覆盖智谱 `/images/generations`，故生图必须独立配 `IMAGE_*` 指向智谱。未配置 / 失败走 fallback（生图无 seed 兜底）。视频生成仍为 P2 占位。
+真实生图已接入：`POST /api/image/generate` 调智谱 CogView-4（`quality=hd` + 关闭水印），返回临时图片 URL（30 天有效，同 prompt+size+style 按 input_hash 缓存 29 天）。与 `marketing-asset` 两步联调——物料层只产 `image_prompt`（画面物体描述），生图拆为独立接口（解耦耗时）。生图时后端给 prompt 套**两层确定性后缀**（不调 LLM、零幻觉、确定性）：① `style` 片段（光照/色调/氛围/背景，`fresh` 默认清新 / `business` 商务）；② 技术后缀（构图护栏 + 画质 + 负面词）。刻意不含 `Professional commercial product photography / elegant composition` 这类企业画册美学词（实测会把 CogView 拽向商务老气风），要商务感由调用方显式传 `style=business`。`marketing-asset.image_prompt` 字段只写画面物体 + 构图 + 负面词，光照/氛围由 `style` 在生图时注入。生图凭证独立走 `IMAGE_*`（`backend/.env`），与 `LLM_*` 相互独立、不回退——当前 `LLM_*` 多半指向 DeepSeek，不覆盖智谱 `/images/generations`，故生图必须独立配 `IMAGE_*` 指向智谱。未配置 / 失败走 fallback（生图无 seed 兜底）。视频生成仍为 P2 占位。
 
-**⚠️ 生图效果待修（2026-07-14 更新）**：CogView-4 链路（service / 路由 / 缓存 / fallback）已正确，但实测出图"商务老气"。诊断已定位：根因是 prompt 残留企业画册美学信号词——`image_service` 后缀的 `Professional commercial product photography / elegant composition`、seed 6 条 `image_prompt` 开头的 `premium realistic product photograph` 与 `elegant/refined ... atmosphere`（先前 commit `a71b3d2` 已把 seed 从"海报排版描述"改为"画面物体描述"，方向对但没清商务词）。本次已清除这些商务信号词（后缀 / seed / LLM 禁词列表三处同步），保留中性构图 + 光照 + 画质 + 负面词。**生图逻辑不动，待实测复核出图是否回归茶本身审美。** 后续 P2：加 `style` 风格维度（运行时切 fresh/warm/minimal/modern_oriental 等），从结构上压住"绝对商务风"。
+**⚠️ 生图效果待修（2026-07-14 更新）**：CogView-4 链路（service / 路由 / 缓存 / fallback）已正确，但实测出图"商务老气"。诊断已定位并分两步修：P1 清除 prompt 残留的企业画册美学信号词（`image_service` 后缀的 `Professional commercial product photography / elegant composition`、seed 6 条 `image_prompt` 开头的 `premium realistic product photograph` 与 `elegant/refined ... atmosphere`，后缀 / seed / LLM 禁词三处同步）；P2 新增 `style` 风格维度——`fresh`（默认）与 `business`，把光照/色调/氛围从 seed 收进风格片段，同一茶 prompt × N 风格，缓存键含 style 防投毒。同时 seed 按产地绑定场景背景（武夷岩壁 / 桐木关山林 / 安溪茶园），强化与知识层联系。**生图逻辑链路不动，待实测复核两种风格的出图效果。**
 
 不要默认扩展到多茶品、其他市场、其他受众参照系或真实视频生成。未开放能力应返回 fallback。
 
@@ -242,12 +242,11 @@ Dockerfile / docker-compose 后端服务
 3. ~~将当前内存查询逐步替换为数据库查询。~~ ✅（读路径已切库）
 4. ~~接入 LLM service、Prompt 模板和输出 JSON 校验。~~ ✅
 5. ~~接入真实生图（CogView-4，POST /api/image/generate）。~~ ✅（链路就位；出图质量待修）
-6. ~~修生图出图质量——seed `image_prompt` 改画面物体描述（a71b3d2）+ 清残留商务信号词（本次）。~~ ✅（代码已改、测试全绿；实测复核中）
-7. 生图 P2：加 `style` 风格维度（运行时切 fresh/warm/minimal/modern_oriental 等），从结构上压住"绝对商务风"。详见 plan。（待办）
-8. 增加测试覆盖与前端联调。（测试覆盖已完成，前端联调待办）
-9. 按部署环境收紧 CORS、文档入口和密钥配置。
+6. ~~修生图出图质量——seed `image_prompt` 改画面物体描述（a71b3d2）+ 清残留商务信号词（P1）+ 加 style 风格维度 fresh/business + seed 按产地绑定场景（P2）。~~ ✅（代码已改、测试全绿；实测复核中）
+7. 增加测试覆盖与前端联调。（测试覆盖已完成，前端联调待办）
+8. 按部署环境收紧 CORS、文档入口和密钥配置。
 
-不要接真实视频 API；真实生图已接入 CogView-4（智谱，经 `IMAGE_*` 配置，与 `LLM_*` 相互独立），经 `POST /api/image/generate` 暴露。`marketing-asset` 仍返 `image_prompt` 作为生图输入（两步联调）。生图出图质量修复进行中——已清 `image_prompt` 残留商务信号词（见下「⚠️ 生图效果待修」），实测复核中。
+不要接真实视频 API；真实生图已接入 CogView-4（智谱，经 `IMAGE_*` 配置，与 `LLM_*` 相互独立），经 `POST /api/image/generate` 暴露，支持 `style` 风格维度（fresh 默认 / business）。`marketing-asset` 仍返 `image_prompt` 作为生图输入（两步联调）。生图出图质量修复进行中——已清商务信号词 + 加 style 维度 + seed 场景化，待实测复核（见上「⚠️ 生图效果待修」）。
 
 ## 协作注意
 
