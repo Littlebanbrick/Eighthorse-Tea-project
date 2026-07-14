@@ -57,10 +57,12 @@ FALLBACK_GATEWAY = "gateway_error"
 # 不依赖 LLM、零幻觉、确定性。含正向画质词 + 负面词（避免常见翻车）。
 # quality / watermark_enabled 走请求体参数，不在此串里。
 _QUALITY_SUFFIX = (
-    ". Professional commercial product photography, soft natural lighting, "
-    "shallow depth of field, sharp focus on the subject, elegant composition, "
-    "high detail, 8k, photorealistic. "
-    "No text, no watermark, no logo, no distorted proportions, no extra objects."
+    ". Professional commercial product photography, vertical 9:16 mobile poster "
+    "composition, main subject in the lower-middle frame, clean uncluttered "
+    "text-safe area occupying about 25-35% of the upper frame for later headline "
+    "overlay, soft natural lighting, shallow depth of field, sharp focus on the "
+    "subject, elegant composition, high detail, 8k, photorealistic. "
+    "No text, no watermark, no generated text, no logo, no distorted proportions, no extra objects."
 )
 
 
@@ -199,5 +201,3 @@ def _build_result(content: dict, model: str, size: str) -> dict:
         "model": content.get("model") or model,
         "size": content.get("size") or size,
     }
-
-
