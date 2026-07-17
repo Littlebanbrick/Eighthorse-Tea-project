@@ -7,23 +7,26 @@
 
 | 文档 | 职责 | 何时读 |
 |---|---|---|
-| [README.md](./README.md) | 项目入口、本地复现、文档索引 | 新进仓库 |
+| [README.md](./README.md) | 项目入口、本地复现、Docker 部署、文档索引 | 新进仓库 |
 | [docs/系统架构.md](./docs/系统架构.md) | 赛题理解、设计依据（why） | 需理解设计动机时 |
 | [docs/技术架构.md](./docs/技术架构.md) | 四层架构、数据流、技术栈、数据策略、追溯机制（how） | 改后端结构/数据/规则前 |
-| [docs/接口文档.md](./docs/接口文档.md) | API 契约、字段定义、P0/P1/P2、fallback 接口 | 改任何 API / 联调前 |
+| [docs/接口文档.md](./docs/接口文档.md) | API 契约、字段定义、P0/P1/P2、fallback 接口、前端枚举映射 | 改任何 API / 联调前 |
+| [docs/compromises.md](./docs/compromises.md) | 妥协记录（已实现但不启用 / 范围红线相关决策） | 恢复搁置能力 / 复审范围时 |
 
 指针速查（详见对应文档）：
 - 四层架构 / 总体设计 → `docs/技术架构.md §2 / §3`
 - 技术栈 → `§4`；数据策略（seed / SQLite / 证据字段 / 规则数据）→ `§6`
 - LLM 调用边界与降级 → `§9`；fallback 设计 → `§10`；API 分层 → `§11`；可追溯机制 → `§12`
-- API 字段 / 请求响应 / 优先级 / fallback 接口 → `docs/接口文档.md`（§6.2 生图、§7 追溯、§8 fallback、§10 优先级）
+- API 字段 / 请求响应 / 优先级 / fallback 接口 → `docs/接口文档.md`（§5 表达含 hint 映射、§6.2 生图、§7 追溯、§8 fallback、§10 优先级）
+- 前端中文枚举 → 后端内部值映射 → `backend/app/enum_map.py`（映射表单一真源）
+- Docker 一体化部署 → `docker-compose.yml` + `deploy/nginx.conf`（backend:8000 + frontend nginx:8080 反代）
 - 赛题理解 / 风味轮研究 / 跨文化类比依据 → `docs/系统架构.md`
 
-**接口字段变更必须同步更新 `docs/接口文档.md`。**
+**接口字段变更必须同步更新 `docs/接口文档.md`，枚举变更同步 `backend/app/enum_map.py`。**
 
 ## 项目状态
 
-可运行后端 Demo，项目名未定。主路径与当前进度见 README「文档」与下「实现进度」；四层架构、数据流、生图、降级、fallback 等设计细节见技术架构 / 接口文档，本文件不重复。未开放能力返回 fallback；不默认扩展到多茶品 / 其他市场 / 其他受众 / 真实视频。
+可运行一体化 Demo（后端 FastAPI + 前端静态原型 + Docker 部署），项目名未定。主路径与当前进度见 README「文档」与下「实现进度」；四层架构、数据流、生图、降级、fallback 等设计细节见技术架构 / 接口文档，本文件不重复。未开放能力返回 fallback；不默认扩展到其他市场 / 其他受众 / 真实视频。
 
 ## 协作约束（代码不可推断的红线，必守）
 
@@ -45,7 +48,7 @@
 
 ## 实现进度
 
-已完成：FastAPI 路由 / SQLAlchemy models（13 表）/ `seed.py --reset` / 读路径切库 / LLM service + Prompt + JSON 校验 / 真实生图（豆包 Seedream）/ output_store 缓存 / pytest 覆盖 / Dockerfile + compose。
+已完成：FastAPI 路由 / SQLAlchemy models（13 表）/ `seed.py --reset` / 读路径切库 / LLM service + Prompt + JSON 校验 / 真实生图（豆包 Seedream）/ output_store 缓存 / pytest 覆盖（160 passed）/ 前后端枚举映射（`app/enum_map.py`：platform/style/tone/length/content_theme/task_type/flavor_reference）/ 前端静态原型（`frontend/`）/ Docker 一体化部署（`docker-compose.yml` backend + frontend nginx 网关，已构建验证全链路）。
 
 后续优先顺序：
 
@@ -56,7 +59,8 @@
 5. ~~接入真实生图。~~ ✅（图源后已切豆包 Seedream 并修复出图质量，见下第 6、7 项）
 6. ~~修生图出图质量——清商务信号词 + style 风格维度 + scene 镜头维度，seed 退化为纯画面物体。~~ ✅
 7. ~~图源切豆包 Seedream + 图内渲染中文知识文字。~~ ✅（详见接口文档 §6.2）
-8. 增加测试覆盖与前端联调。（测试覆盖已完成，前端联调待办）
-9. 按部署环境收紧 CORS、文档入口和密钥配置。
+8. ~~前端枚举映射 + Docker 一体化部署。~~ ✅（enum_map 统一前端中文枚举→后端英文内部值；nginx 反代 `/api`，前端同源调无跨域）
+9. 增加测试覆盖与前端联调。（测试覆盖已完成，前端联调待办）
+10. 按部署环境收紧 CORS、文档入口和密钥配置。
 
-> fresh clone 后须先跑 `python scripts/seed.py --reset` 灌表，否则启动打印警告、读路径返回空 / 404。未灌表不 crash、不自动灌。
+> fresh clone 后须先跑 `python scripts/seed.py --reset` 灌表，否则启动打印警告、读路径返回空 / 404。未灌表不 crash、不自动灌。（Docker 方式构建时镜像内自动跑 `seed.py --reset`，无需手动灌表。）

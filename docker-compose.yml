@@ -1,15 +1,45 @@
+# 八马茶 AI 表达 Demo · 一体化部署
+#
+# 两个服务：
+#   backend   FastAPI（容器内 8000），构建时跑 seed.py --reset 灌表
+#   frontend  nginx（容器内 8080），serve /frontend 静态 + 反代 /api 到 backend
+#
+# 云服务器只需暴露 frontend 的 8080：浏览器访问 8080 拿到前端页面，
+# 页面同源调 /api/... 由 nginx 反代到 backend，无跨域、无需 CORS。
+#
+# 本地复现：
+#   docker compose up -d --build
+#   浏览器访问 http://localhost:8080          （前端桌面原型）
+#   后端 Swagger：http://localhost:8080/docs   （经 nginx 反代）
+#   直连后端：    http://localhost:8000/docs  （也可，CORS 已放开）
+#
+# 密钥：LLM / 生图 key 经 ./backend/.env 注入（gitignored，不进镜像）。
+#   未配置时 llm_enabled / image_enabled=False，生成走 seed 兜底，不白屏。
+
 services:
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: eighthorse-tea-backend
-    ports:
-      - "8000:8000"
-    # LLM key 等经 ./backend/.env 注入（.env 不进 Git / 不进镜像）。
+    expose:
+      - "8000"          # 仅对 compose 内网暴露，不直接映射宿主
+    # LLM / 生图 key 等经 ./backend/.env 注入（.env 不进 Git / 不进镜像）。
     # 未提供时 llm_enabled=False，生成接口自动走 mock 兜底。
     env_file:
       - ./backend/.env
     environment:
-      APP_ENV: local
+      APP_ENV: docker
+    restart: unless-stopped
+
+  frontend:
+    image: nginx:1.27-alpine
+    container_name: eighthorse-tea-frontend
+    depends_on:
+      - backend
+    ports:
+      - "8080:8080"      # 唯一对外端口：前端 + API 反代都从这里出
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./frontend:/usr/share/nginx/frontend:ro
     restart: unless-stopped
