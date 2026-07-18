@@ -60,6 +60,15 @@ class DomesticExpressionRequest(BaseModel):
             "注入 prompt 决定跨文化类比时参照哪个风味体系。"
         ),
     )
+    recipient: str | None = Field(
+        default=None,
+        description=(
+            "销售对象 hint。前端可传中文枚举（自己喝/送长辈/送同事/送朋友/商务送礼），"
+            "后端按 app.enum_map 翻成内部英文值（self/elder/colleague/friend/"
+            "business_gifting）；未知值原样透传。注入 prompt 影响话术场景化（送礼偏尊重/"
+            "体面，自饮偏个人体验），不强制枚举。"
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +111,13 @@ class CrossCulturalExpressionRequest(BaseModel):
         description=(
             "风味参照体系 hint（coffee / wine / none），与国内表达同一套。注入 prompt 决定"
             "跨文化类比时参照哪个风味体系。"
+        ),
+    )
+    recipient: str | None = Field(
+        default=None,
+        description=(
+            "销售对象 hint，与国内表达同一套枚举（自己喝/送长辈/... → self/elder/...）。"
+            "未知值透传。注入 prompt 影响话术场景化。"
         ),
     )
 

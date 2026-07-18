@@ -54,16 +54,17 @@ def _hint_block(
     time_node: str | None,
     task_type: str | None = None,
     flavor_reference: str | None = None,
+    recipient: str | None = None,
 ) -> str:
-    """表达接口的可选 hint 段：语气 / 篇幅 / 时间节点 / 任务类型 / 风味参照。
+    """表达接口的可选 hint 段：语气 / 篇幅 / 时间节点 / 任务类型 / 风味参照 / 销售对象。
 
     与 _directive_block（NL 入口的整段自由指令）不同：这是结构化接口的可选
-    参数，经 enum_map 翻成内部英文值（tone/length/task_type/flavor_reference）
+    参数，经 enum_map 翻成内部英文值（tone/length/task_type/flavor_reference/recipient）
     或原样透传（time_node），作为低优先级生成提示注入。全为 None 时不注入，
     行为同现状。hint 进 user_prompt，从而进 input_hash（缓存键）——不同 hint
     不命中同一缓存。
 
-    task_type 的内部值（component_to_flavor 等）是英文标识符，对 LLM 不直观，
+    task_type / flavor_reference / recipient 的内部值是英文标识符，对 LLM 不直观，
     故这里再翻成一句描述性中文喂给 LLM（enum_map 只负责值归一化，不负责文案）。
     """
     parts: list[str] = []
@@ -79,6 +80,9 @@ def _hint_block(
     if flavor_reference:
         desc = _FLAVOR_REFERENCE_DESC.get(flavor_reference)
         parts.append(f"风味参照体系：{desc or flavor_reference}")
+    if recipient:
+        desc = _RECIPIENT_DESC.get(recipient)
+        parts.append(f"销售对象：{desc or recipient}")
     if not parts:
         return ""
     return "===生成提示（hint，在事实与规则约束下尽量满足）===\n" + "；".join(parts) + "。\n===生成提示结束===\n\n"
@@ -97,6 +101,15 @@ _FLAVOR_REFERENCE_DESC: dict[str, str] = {
     "none": "纯中式茶文化语境，不作咖啡/红酒类比",
 }
 
+# recipient 内部值 → 描述性中文（销售对象决定话术场景化方向）。
+_RECIPIENT_DESC: dict[str, str] = {
+    "self": "自己喝（自饮品饮场景，话术偏个人体验与日常口感）",
+    "elder": "送长辈（话术偏尊重、健康、传统意涵）",
+    "colleague": "送同事（话术偏轻量、分享、日常礼节）",
+    "friend": "送朋友（话术偏情谊、共享、品味交流）",
+    "business_gifting": "商务送礼（话术偏正式、体面、品牌价值）",
+}
+
 
 def build_domestic_prompt(
     *,
@@ -112,14 +125,15 @@ def build_domestic_prompt(
     time_node: str | None = None,
     task_type: str | None = None,
     flavor_reference: str | None = None,
+    recipient: str | None = None,
 ) -> tuple[str, str, list[dict]]:
     """国内中文表达 prompt。
 
     Args:
         directive: 自然语言入口传来的原始用户指令（语气 / 侧重 / 篇幅等）。
             现有 domestic-expression 接口调用时传 None，行为不变。
-        tone / length / time_node / task_type / flavor_reference: 结构化接口的
-            可选 hint，经 enum_map 翻译后注入。hint 段与 directive 段都进
+        tone / length / time_node / task_type / flavor_reference / recipient: 结构化
+            接口的可选 hint，经 enum_map 翻译后注入。hint 段与 directive 段都进
             user_prompt（→ input_hash 缓存键）。
 
     Returns:
@@ -152,6 +166,7 @@ def build_domestic_prompt(
     user += _hint_block(
         tone=tone, length=length, time_node=time_node,
         task_type=task_type, flavor_reference=flavor_reference,
+        recipient=recipient,
     )
     user += _directive_block(directive)
     user += f"请基于上述事实与规则，生成面向国内消费者的中文表达。{style_hint}{directive_hint}"
@@ -176,6 +191,7 @@ def build_cross_cultural_prompt(
     time_node: str | None = None,
     task_type: str | None = None,
     flavor_reference: str | None = None,
+    recipient: str | None = None,
 ) -> tuple[str, str, list[dict]]:
     """跨文化表达 prompt（国内表达横向翻译）。
 
@@ -184,8 +200,8 @@ def build_cross_cultural_prompt(
     Args:
         directive: 自然语言入口传来的原始用户指令（语气 / 侧重 / 篇幅等）。
             现有 cross-cultural-expression 接口调用时传 None，行为不变。
-        tone / length / time_node / task_type / flavor_reference: 结构化接口的
-            可选 hint，经 enum_map 翻译后注入。
+        tone / length / time_node / task_type / flavor_reference / recipient: 结构化
+            接口的可选 hint，经 enum_map 翻译后注入。
     """
     rules_text, selected = _rules_block(
         scope="cross_cultural_expression", market=market,
@@ -223,6 +239,7 @@ def build_cross_cultural_prompt(
     user += _hint_block(
         tone=tone, length=length, time_node=time_node,
         task_type=task_type, flavor_reference=flavor_reference,
+        recipient=recipient,
     )
     user += _directive_block(directive)
     user += (

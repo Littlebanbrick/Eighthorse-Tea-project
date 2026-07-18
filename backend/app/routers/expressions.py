@@ -21,7 +21,7 @@ def create_domestic_expression(tea_id: str, body: DomesticExpressionRequest):
     启用 LLM 时由规则约束生成；未启用 / 失败时退回 seed 预置表达。
 
     tone / length 经 enum_map 翻成内部英文值；time_node 自由文本原样透传；
-    task_type / flavor_reference 经 enum_map 归一化。五者都注入 prompt。
+    task_type / flavor_reference / recipient 经 enum_map 归一化。六者都注入 prompt。
     """
     expr, status, llm_meta = expression_service.get_domestic_expression(
         tea_id=tea_id,
@@ -32,6 +32,7 @@ def create_domestic_expression(tea_id: str, body: DomesticExpressionRequest):
         time_node=body.time_node,
         task_type=enum_map.resolve_task_type(body.task_type),
         flavor_reference=enum_map.resolve_flavor_reference(body.flavor_reference),
+        recipient=enum_map.resolve_recipient(body.recipient),
     )
     if status == "tea_not_found":
         return responses.error("TEA_NOT_FOUND", "未找到对应茶品")
@@ -48,7 +49,7 @@ def create_cross_cultural_expression(tea_id: str, body: CrossCulturalExpressionR
     """生成跨文化表达（由国内表达横向翻译派生，关系记于 source_expression_id）。
 
     tone / length 经 enum_map 翻成内部英文值；time_node 自由文本原样透传；
-    task_type / flavor_reference 经 enum_map 归一化。五者都注入 prompt 影响话术。
+    task_type / flavor_reference / recipient 经 enum_map 归一化。六者都注入 prompt 影响话术。
     """
     expr, status, llm_meta = expression_service.get_cross_cultural_expression(
         tea_id=tea_id,
@@ -60,6 +61,7 @@ def create_cross_cultural_expression(tea_id: str, body: CrossCulturalExpressionR
         time_node=body.time_node,
         task_type=enum_map.resolve_task_type(body.task_type),
         flavor_reference=enum_map.resolve_flavor_reference(body.flavor_reference),
+        recipient=enum_map.resolve_recipient(body.recipient),
     )
 
     if status == "tea_not_found":

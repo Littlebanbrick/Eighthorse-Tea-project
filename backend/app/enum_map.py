@@ -11,8 +11,8 @@
   后原样透传，由 LLM / 下游自行消化。这避免前端临时新增枚举时后端阻断。
 
 仅 marketing-asset 的 platform / style / content_theme 用到，domestic-expression /
-cross-cultural-expression 的 tone / length / task_type / flavor_reference 用到。
-表达接口的 style 是后端自有枚举（store_sales 等），不走本表。time_node 不映射
+cross-cultural-expression 的 tone / length / task_type / flavor_reference / recipient
+用到。表达接口的 style 是后端自有枚举（store_sales 等），不走本表。time_node 不映射
 （自由文本，原样透传进 prompt）。
 """
 
@@ -103,6 +103,22 @@ FLAVOR_REFERENCE_ALIASES: dict[str, str] = {
     "none": "none",
 }
 
+# 销售对象（recipient）：前端中文枚举 → 内部英文值。
+# 国内链 + 跨文化链共用同一套。"自己喝"是退化的 self recipient，其余为送礼对象。
+RECIPIENT_ALIASES: dict[str, str] = {
+    "自己喝": "self",
+    "送长辈": "elder",
+    "送同事": "colleague",
+    "送朋友": "friend",
+    "商务送礼": "business_gifting",
+    # 英文内部值自映射，便于前端已传英文时原样通过
+    "self": "self",
+    "elder": "elder",
+    "colleague": "colleague",
+    "friend": "friend",
+    "business_gifting": "business_gifting",
+}
+
 
 def _resolve(value: str | None, aliases: dict[str, str], field_name: str) -> str | None:
     """通用映射：查表命中返内部值，未命中 warn 后原样透传。
@@ -152,3 +168,8 @@ def resolve_task_type(task_type: str | None) -> str | None:
 def resolve_flavor_reference(flavor_reference: str | None) -> str | None:
     """风味参照体系 → 内部值（coffee/wine/none 自映射）。未知值透传。"""
     return _resolve(flavor_reference, FLAVOR_REFERENCE_ALIASES, "flavor_reference")
+
+
+def resolve_recipient(recipient: str | None) -> str | None:
+    """前端销售对象枚举 → 内部英文值（送长辈 → elder 等）。未知值透传。"""
+    return _resolve(recipient, RECIPIENT_ALIASES, "recipient")

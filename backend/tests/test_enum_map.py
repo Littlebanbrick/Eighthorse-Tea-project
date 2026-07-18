@@ -226,3 +226,35 @@ def test_flavor_reference_unknown_passthrough(caplog):
         result = enum_map.resolve_flavor_reference("sake")
     assert result == "sake"
     assert any("flavor_reference" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# recipient（销售对象：自己喝 / 送长辈 / ... ）
+# ---------------------------------------------------------------------------
+
+
+def test_recipient_aliases():
+    assert enum_map.resolve_recipient("自己喝") == "self"
+    assert enum_map.resolve_recipient("送长辈") == "elder"
+    assert enum_map.resolve_recipient("送同事") == "colleague"
+    assert enum_map.resolve_recipient("送朋友") == "friend"
+    assert enum_map.resolve_recipient("商务送礼") == "business_gifting"
+
+
+def test_recipient_none_and_empty():
+    assert enum_map.resolve_recipient(None) is None
+    assert enum_map.resolve_recipient("") is None
+
+
+def test_recipient_unknown_passthrough(caplog):
+    import logging
+
+    with caplog.at_level(logging.WARNING, logger="app.enum_map"):
+        result = enum_map.resolve_recipient("送老师")
+    assert result == "送老师"
+    assert any("recipient" in r.message for r in caplog.records)
+
+
+def test_recipient_internal_value_self_mapped():
+    assert enum_map.resolve_recipient("self") == "self"
+    assert enum_map.resolve_recipient("business_gifting") == "business_gifting"

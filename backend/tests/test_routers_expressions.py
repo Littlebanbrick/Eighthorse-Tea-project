@@ -98,6 +98,7 @@ def test_domestic_expression_hint_fields_echo(client):
             "tone": "温润亲切",
             "length": "短（80字内）",
             "time_node": "中秋",
+            "recipient": "送长辈",
         },
     )
     assert resp.status_code == 200
@@ -105,6 +106,7 @@ def test_domestic_expression_hint_fields_echo(client):
     assert d["tone"] == "warm"
     assert d["length"] == "short"
     assert d["time_node"] == "中秋"
+    assert d["recipient"] == "elder"
 
 
 def test_domestic_expression_hint_optional_absent(client):
@@ -114,6 +116,7 @@ def test_domestic_expression_hint_optional_absent(client):
     assert "tone" not in d
     assert "length" not in d
     assert "time_node" not in d
+    assert "recipient" not in d
 
 
 def test_cross_cultural_expression_hint_fields_echo(client):
@@ -128,6 +131,7 @@ def test_cross_cultural_expression_hint_fields_echo(client):
             "time_node": "圣诞节",
             "task_type": "vague-to-vivid",
             "flavor_reference": "wine",
+            "recipient": "商务送礼",
         },
     )
     assert resp.status_code == 200
@@ -137,6 +141,7 @@ def test_cross_cultural_expression_hint_fields_echo(client):
     assert d["time_node"] == "圣诞节"
     assert d["task_type"] == "vague_to_vivid", "连字符枚举应转下划线回显"
     assert d["flavor_reference"] == "wine"
+    assert d["recipient"] == "business_gifting"
 
 
 def test_domestic_expression_task_type_flavor_reference_echo(client):
