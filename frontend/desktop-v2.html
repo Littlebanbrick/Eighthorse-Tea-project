@@ -290,13 +290,6 @@ input,textarea{font-family:inherit}
 
 .modal{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:16px;animation:fade .3s ease-out}
 .modal .mask{position:absolute;inset:0;background:transparent}
-.modal .back-btn{position:fixed;left:50%;top:24px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:999px;border:1px solid rgba(184,147,90,.5);background:rgba(194,97,59,.8);color:var(--paper);box-shadow:var(--shadowL);backdrop-filter:blur(8px);transition:all .2s;animation:up .3s ease-out both}
-.modal .back-btn:hover{border-color:var(--gold);background:var(--brothD);transform:translateX(-50%) scale(1.05)}
-.modal .back-btn .ic{width:20px;height:20px;border-radius:50%;background:rgba(184,147,90,.2);display:flex;align-items:center;justify-content:center;transition:all .2s}
-.modal .back-btn:hover .ic{background:var(--gold);color:var(--brothD)}
-.modal .back-btn .ic svg{width:12px;height:12px}
-.modal .back-btn .lb{font-size:12px;font-weight:500;letter-spacing:.05em}
-.modal .back-btn .kbd{padding:2px 6px;border-radius:4px;background:rgba(194,97,59,.6);font-size:10px;color:rgba(212,176,122,.8)}
 .modal-card{position:relative;z-index:10;display:flex;flex-direction:column;max-height:85vh;width:100%;max-width:920px;border-radius:28px;border:1px solid rgba(184,147,90,.4);background:var(--paper);box-shadow:0 30px 80px -20px rgba(194,97,59,.55),0 0 0 1px rgba(184,147,90,.15);overflow:hidden;animation:pop .3s cubic-bezier(.34,1.56,.64,1) both}
 .modal-card::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:.8}
 .modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:linear-gradient(135deg,var(--brothD),var(--ink));color:var(--paper);border-bottom:1px solid rgba(184,147,90,.2)}
@@ -1340,18 +1333,13 @@ function renderModal(){
   const isField=!!S.preField;
   modal.innerHTML=`
     <div class="mask" onclick="closePreSelect()"></div>
-    <button class="back-btn" onclick="closePreSelect()">
-      <span class="ic">${svg("back")}</span>
-      <span class="lb">返回</span>
-      <span class="kbd">Esc</span>
-    </button>
     <div class="modal-card ${isField?'single':''}" id="modalCard">
       <div class="modal-head">
         <div class="lt">
           <span class="seal">${isOvs?'海外':'国内'}</span>
           <div>
             <div class="ttl">${isCopy?'文案':'物料'}${isField?' · 修改 · '+fieldTitle(S.preField):' · 前置选择'}</div>
-            <div class="sub">${isField?'选择后点击底部「保存修改」生效':((isCopy?!S.copyConfirmed:!S.matConfirmed)?'请完成必选项以进入对话 · 随时可点上方返回退出':'点击下方任意项可修改已选信息')}</div>
+            <div class="sub">${isField?'选择后点击底部「保存修改」生效':((isCopy?!S.copyConfirmed:!S.matConfirmed)?'请完成必选项以进入对话 · 点击遮罩可退出':'点击下方任意项可修改已选信息')}</div>
           </div>
         </div>
       </div>
