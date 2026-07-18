@@ -170,9 +170,9 @@ rules:
     audience_reference: any
     trigger_terms: []
     priority: high
-    instruction: "任何生成文案必须保留generated=true和上游trace_refs。禁止删除或伪装生成标记。"
-    negative_example: "生成文案不标generated字段，看起来像人工撰写的事实。"
-    positive_example: "所有LLM生成内容携带generated=true及trace_refs数组。"
+    instruction: "是否为AI生成由后端响应 meta.llm_generated 字段标记，上游依据由后端 meta.trace_refs 数组记录——二者均为系统元数据，由后端写入，不在文案正文内。LLM生成的文案正文必须是纯自然语言，不得包含 generated=、trace_refs、（AI生成）、generated=true 等元数据字样或括号声明。"
+    negative_example: "……入口醇厚，回甘悠长。（AI生成，generated=true）——把元数据标记写进了正文。"
+    positive_example: "……入口醇厚，回甘悠长。——正文是纯自然语言；是否AI生成、上游依据由后端 meta 字段记录。"
     enabled: true
 
   # ===== 证据边界展示 =====
