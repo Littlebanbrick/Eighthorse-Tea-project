@@ -239,6 +239,10 @@ input,textarea{font-family:inherit}
 .msg.assistant .msg-bubble{background:var(--paper);border:1px solid rgba(184,147,90,.2);border-top-left-radius:4px;color:var(--broth)}
 .msg.user .msg-bubble{background:linear-gradient(135deg,var(--brothD),var(--ink));color:var(--paper);border-top-right-radius:4px}
 .msg.result .msg-bubble{background:rgba(45,74,62,.06);border:1px solid rgba(45,74,62,.2);border-top-left-radius:4px;color:var(--broth);font-size:13px;line-height:1.7}
+.msg.error .msg-bubble{background:rgba(155,58,47,.06);border:1px solid var(--cinnabar);border-top-left-radius:4px;color:var(--cinnabar)}
+.msg.error .msg-bubble::before{content:"⚠ 生成失败";display:block;font-size:11px;font-weight:700;letter-spacing:.05em;margin-bottom:4px;opacity:.85}
+.msg.fallback .msg-bubble{background:rgba(184,147,90,.08);border:1px dashed var(--gold);border-top-left-radius:4px;color:var(--goldD)}
+.msg.fallback .msg-bubble::before{content:"◇ 能力未开放";display:block;font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--goldD);margin-bottom:4px;opacity:.9}
 .msg.image .msg-bubble{padding:0;background:transparent;border:none;max-width:320px}
 .msg.image img{width:100%;border-radius:12px;border:1px solid rgba(184,147,90,.3);display:block}
 .msg.image .caption{margin-top:8px;font-size:12px;color:rgba(212,115,79,.6);text-align:center}
@@ -437,6 +441,7 @@ const S={
   copyConfirmed:false,matConfirmed:false,
   messages:[],
   typing:false,
+  typingText:"茶语正在努力输入中",
   awaitingInput:false,
   preOpen:false,preMode:null,preField:null,
   customTimeInput:"",
@@ -486,6 +491,7 @@ function applyStoredState(data){
   S.copyConfirmed=!!data.copyConfirmed;
   S.matConfirmed=!!data.matConfirmed;
   S.typing=false;
+  S.typingText="茶语正在努力输入中";
   S.awaitingInput=false;
   return true;
 }
@@ -607,6 +613,7 @@ function switchHistory(id){
   S.matConfirmed=hist.matConfirmed;
   S.messages=[...hist.messages];
   S.typing=false;
+  S.typingText="茶语正在努力输入中";
   S.awaitingInput=false;
   saveStateToStorage();
   renderWorkbenchOnly();
@@ -986,7 +993,7 @@ function renderChatArea(){
     html+=`<div class="msg ${m.role} ${m.type}"><div class="msg-av">${av}</div><div class="msg-bubble">${body}</div></div>`;
   });
   if(S.typing){
-    html+=`<div class="typing"><span class="hint">茶语正在努力输入中</span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>`;
+    html+=`<div class="typing"><span class="hint">${S.typingText||"茶语正在努力输入中"}</span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>`;
   }
   return html;
 }
@@ -1130,11 +1137,12 @@ function handleOption(action,label){
     else if(label==="特定成分"||label==="特定维度"){action="specific";}
   }
   if(action==="overview"){
-    S.typing=true;updateChatArea();
+    S.typingText="正在生成茶语文案…";S.typing=true;updateChatArea();
     const isOvs=S.edition==="overseas";
     const apiCall=isOvs?BAMA_API.crossCulturalExpression(S.copySel.teaCategory, S.copySel):BAMA_API.domesticExpression(S.copySel.teaCategory, S.copySel);
     apiCall.then(r=>{
       S.typing=false;
+      S.typingText="茶语正在努力输入中";
       const d=r.data||{};
       const outs=d.outputs||{};
       let body="";
@@ -1161,7 +1169,8 @@ function handleOption(action,label){
       }
     }).catch(e=>{
       S.typing=false;
-      pushMessage({role:"assistant",content:(e.fallback?"":"生成失败：")+e.message,type:"text"});
+      S.typingText="茶语正在努力输入中";
+      pushMessage({role:"assistant",content:(e.fallback?"":"生成失败：")+e.message,type:e.fallback?"fallback":"error"});
       S.stage="done";
       saveCurrentToHistory();
       updateChatArea();
@@ -1178,7 +1187,7 @@ function handleOption(action,label){
       updateChatArea();
     },900);
   }else if(action==="confirm"){
-    S.typing=true;updateChatArea();
+    S.typingText="正在准备物料文案…";S.typing=true;updateChatArea();
     const tea=S.matSel.teaCategory||"茶叶";
     const routeId="demo_"+(S.matSel.teaCategory||"tea");
     BAMA_API.marketingAsset(S.matSel.teaCategory||"赛珍珠浓香型安溪铁观音", S.matSel, routeId).then(assetRes=>{
@@ -1189,6 +1198,7 @@ function handleOption(action,label){
       if(!imagePrompt){
         throw new Error("后端未返回 image_prompt");
       }
+      S.typingText=S.matSel.modality==="video"?"正在生成视频物料，预计需要几分钟…":"正在生成图片，通常需要 1-2 分钟，请稍候…";updateChatArea();
       return BAMA_API.imageGenerate(imagePrompt, S.matSel.teaCategory||"赛珍珠浓香型安溪铁观音", S.matSel, routeId).then(imgRes=>{
         const imgData=imgRes.data||{};
         const imageUrl=imgData.image_url;
@@ -1215,7 +1225,8 @@ function handleOption(action,label){
       });
     }).catch(e=>{
       S.typing=false;
-      pushMessage({role:"assistant",content:(e.fallback?"":"物料生成失败：")+e.message,type:"text"});
+      S.typingText="茶语正在努力输入中";
+      pushMessage({role:"assistant",content:(e.fallback?"":"物料生成失败：")+e.message,type:e.fallback?"fallback":"error"});
       S.stage="done";
       saveCurrentToHistory();
       updateChatArea();
@@ -1235,11 +1246,12 @@ function handleOption(action,label){
 function handleCandidate(c){
   pushMessage({role:"user",content:c,type:"text"});
   updateChatArea();
-  S.typing=true;updateChatArea();
+  S.typingText="正在生成茶语文案…";S.typing=true;updateChatArea();
   const isOvs=S.edition==="overseas";
   const apiCall=isOvs?BAMA_API.crossCulturalExpression(S.copySel.teaCategory, S.copySel):BAMA_API.domesticExpression(S.copySel.teaCategory, S.copySel);
   apiCall.then(r=>{
     S.typing=false;
+    S.typingText="茶语正在努力输入中";
     const d=r.data||{};
     const outs=d.outputs||{};
     let body="";
@@ -1265,7 +1277,8 @@ function handleCandidate(c){
     }
   }).catch(e=>{
     S.typing=false;
-    pushMessage({role:"assistant",content:(e.fallback?"":"生成失败：")+e.message,type:"text"});
+    S.typingText="茶语正在努力输入中";
+    pushMessage({role:"assistant",content:(e.fallback?"":"生成失败：")+e.message,type:e.fallback?"fallback":"error"});
     saveCurrentToHistory();
     updateChatArea();
   });
@@ -1275,11 +1288,12 @@ function handleUserInput(text){
   pushMessage({role:"user",content:text,type:"text"});
   S.awaitingInput=false;
   updateChatArea();
-  S.typing=true;updateChatArea();
+  S.typingText="正在生成茶语文案…";S.typing=true;updateChatArea();
   const isOvs=S.edition==="overseas";
   const apiCall=isOvs?BAMA_API.crossCulturalExpression(S.copySel.teaCategory, S.copySel):BAMA_API.domesticExpression(S.copySel.teaCategory, S.copySel);
   apiCall.then(r=>{
     S.typing=false;
+    S.typingText="茶语正在努力输入中";
     const d=r.data||{};
     const outs=d.outputs||{};
     let body="";
@@ -1305,7 +1319,8 @@ function handleUserInput(text){
     }
   }).catch(e=>{
     S.typing=false;
-    pushMessage({role:"assistant",content:(e.fallback?"":"生成失败：")+e.message,type:"text"});
+    S.typingText="茶语正在努力输入中";
+    pushMessage({role:"assistant",content:(e.fallback?"":"生成失败：")+e.message,type:e.fallback?"fallback":"error"});
     saveCurrentToHistory();
     updateChatArea();
   });
