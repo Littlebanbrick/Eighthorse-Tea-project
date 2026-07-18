@@ -312,7 +312,7 @@ header.topbar{position:relative;z-index:20;display:flex;align-items:center;justi
 
 /* ===== Bottom Sheet ===== */
 .sheet-mask{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;justify-content:flex-end;animation:fadeIn .3s both}
-.sheet-overlay{position:absolute;inset:0;background:rgba(194,97,59,.7);backdrop-filter:blur(6px)}
+.sheet-overlay{position:absolute;inset:0;background:transparent}
 .sheet-return{position:absolute;left:50%;top:calc(16px + var(--safe-t));transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:8px;border:1px solid rgba(184,147,90,.5);background:rgba(194,97,59,.85);padding:8px 14px;border-radius:999px;color:var(--paper);box-shadow:0 8px 24px -4px rgba(194,97,59,.5);backdrop-filter:blur(8px);animation:fadeUp .4s both}
 .sheet-return:active{transform:translateX(-50%) scale(.96)}
 .sheet-return .ic{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(184,147,90,.2)}
