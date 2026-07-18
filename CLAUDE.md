@@ -19,7 +19,7 @@
 - LLM 调用边界与降级 → `§9`；fallback 设计 → `§10`；API 分层 → `§11`；可追溯机制 → `§12`
 - API 字段 / 请求响应 / 优先级 / fallback 接口 → `docs/接口文档.md`（§5 表达含 hint 映射、§6.2 生图、§7 追溯、§8 fallback、§10 优先级）
 - 前端中文枚举 → 后端内部值映射 → `backend/app/enum_map.py`（映射表单一真源）
-- 前端 v2 对接层 → `frontend/api.js`（`BAMA_API` 封装所有后端调用，茶名须用后端全名对齐 `/api/teas`；两个已知缺口见「实现进度」第 9 项）
+- 前端 v2 对接层 → `frontend/api.js`（`BAMA_API` 封装所有后端调用，茶名须用后端全名对齐 `/api/teas`；BASE 自适应同源、`meta.fallback` 统一拦截）
 - Docker 一体化部署 → `docker-compose.yml` + `deploy/nginx.conf`（backend:8000 + frontend nginx:8080 反代，index 已切 `desktop-v2.html`）
 - CI/CD → `.github/workflows/deploy.yml` + `scripts/deploy-remote.sh`（推 main 即 SSH 部署到云服务器 8080；密钥经仓库 Secret `SSH_HOST` / `SSH_PRIVATE_KEY` 注入）
 - 赛题理解 / 风味轮研究 / 跨文化类比依据 → `docs/系统架构.md`
@@ -62,7 +62,7 @@
 6. ~~修生图出图质量——清商务信号词 + style 风格维度 + scene 镜头维度，seed 退化为纯画面物体。~~ ✅
 7. ~~图源切豆包 Seedream + 图内渲染中文知识文字。~~ ✅（详见接口文档 §6.2）
 8. ~~前端枚举映射 + Docker 一体化部署。~~ ✅（enum_map 统一前端中文枚举→后端英文内部值；nginx 反代 `/api`，前端同源调无跨域）
-9. ~~增加测试覆盖与前端联调。~~ ✅（测试 164 passed；前端 v2 已切纯后端对接 `api.js`，茶名对齐后端全名、枚举经 `enum_map` 映射；剩余两项待办：①`api.js` `BASE` 写死 `localhost:8000`，Docker/nginx 同源需改相对路径 `""`；②v2 暂未读响应 `meta.fallback`，遇 fallback 显示空内容）
+9. ~~增加测试覆盖与前端联调。~~ ✅（测试 164 passed；前端 v2 已切纯后端对接 `api.js`，茶名对齐后端全名、枚举经 `enum_map` 映射；`api.js` BASE 自适应同源、`meta.fallback` 统一拦截已修，见 commit ca07362）
 10. 按部署环境收紧 CORS、文档入口和密钥配置。
 11. ~~GitHub Actions 自动部署到云服务器（8080）。~~ ✅（`.github/workflows/deploy.yml` + `scripts/deploy-remote.sh`；密钥经仓库 Secret 注入）
 
