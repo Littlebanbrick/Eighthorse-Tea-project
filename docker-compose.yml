@@ -21,7 +21,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: eighthorse-tea-backend
+    container_name: chayu-bama-backend
     expose:
       - "8000"          # 仅对 compose 内网暴露，不直接映射宿主
     # LLM / 生图 key 等经 ./backend/.env 注入（.env 不进 Git / 不进镜像）。
@@ -34,7 +34,7 @@ services:
 
   frontend:
     image: nginx:1.27-alpine
-    container_name: eighthorse-tea-frontend
+    container_name: chayu-bama-frontend
     depends_on:
       - backend
     ports:

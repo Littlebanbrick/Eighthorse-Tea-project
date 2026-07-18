@@ -20,6 +20,7 @@
 - API 字段 / 请求响应 / 优先级 / fallback 接口 → `docs/接口文档.md`（§5 表达含 hint 映射、§6.2 生图、§7 追溯、§8 fallback、§10 优先级）
 - 前端中文枚举 → 后端内部值映射 → `backend/app/enum_map.py`（映射表单一真源）
 - Docker 一体化部署 → `docker-compose.yml` + `deploy/nginx.conf`（backend:8000 + frontend nginx:8080 反代）
+- CI/CD → `.github/workflows/deploy.yml` + `scripts/deploy-remote.sh`（推 main 即 SSH 部署到云服务器 8080；密钥经仓库 Secret `SSH_HOST` / `SSH_PRIVATE_KEY` 注入）
 - 赛题理解 / 风味轮研究 / 跨文化类比依据 → `docs/系统架构.md`
 
 **接口字段变更必须同步更新 `docs/接口文档.md`，枚举变更同步 `backend/app/enum_map.py`。**
@@ -48,7 +49,7 @@
 
 ## 实现进度
 
-已完成：FastAPI 路由 / SQLAlchemy models（13 表）/ `seed.py --reset` / 读路径切库 / LLM service + Prompt + JSON 校验 / 真实生图（豆包 Seedream）/ output_store 缓存 / pytest 覆盖（160 passed）/ 前后端枚举映射（`app/enum_map.py`：platform/style/tone/length/content_theme/task_type/flavor_reference）/ 前端静态原型（`frontend/`）/ Docker 一体化部署（`docker-compose.yml` backend + frontend nginx 网关，已构建验证全链路）。
+已完成：FastAPI 路由 / SQLAlchemy models（16 表）/ `seed.py --reset` / 读路径切库 / LLM service + Prompt + JSON 校验 / 真实生图（豆包 Seedream）/ output_store 缓存 / pytest 覆盖（164 passed）/ 前后端枚举映射（`app/enum_map.py`：platform/style/tone/length/content_theme/task_type/flavor_reference）/ 前端静态原型（`frontend/`）/ Docker 一体化部署（`docker-compose.yml` backend + frontend nginx 网关，已构建验证全链路）/ GitHub Actions 自动部署（`.github/workflows/deploy.yml` + `scripts/deploy-remote.sh`，推 main 即部署到云服务器 8080，密钥经仓库 Secret 注入）。
 
 后续优先顺序：
 
@@ -62,5 +63,6 @@
 8. ~~前端枚举映射 + Docker 一体化部署。~~ ✅（enum_map 统一前端中文枚举→后端英文内部值；nginx 反代 `/api`，前端同源调无跨域）
 9. 增加测试覆盖与前端联调。（测试覆盖已完成，前端联调待办）
 10. 按部署环境收紧 CORS、文档入口和密钥配置。
+11. ~~GitHub Actions 自动部署到云服务器（8080）。~~ ✅（`.github/workflows/deploy.yml` + `scripts/deploy-remote.sh`；密钥经仓库 Secret 注入）
 
 > fresh clone 后须先跑 `python scripts/seed.py --reset` 灌表，否则启动打印警告、读路径返回空 / 404。未灌表不 crash、不自动灌。（Docker 方式构建时镜像内自动跑 `seed.py --reset`，无需手动灌表。）

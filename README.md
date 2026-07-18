@@ -62,6 +62,32 @@ http://localhost:8000/docs      # 直连后端（也可，CORS 已放开）
 
 ## 部署到云服务器
 
+### 方式一：GitHub Actions 自动部署（推荐）
+
+推 `main` 即自动部署到云服务器 8080，无需登录服务器操作。流水线：`.github/workflows/deploy.yml`，服务器端脚本：`scripts/deploy-remote.sh`（同步 `origin/main` → `docker compose up -d --build`，幂等、不碰 `backend/.env`、不碰其他 compose 项目）。也支持在 GitHub Actions 页面手动 Run workflow。
+
+**一次性准备**（在仓库 Settings → Secrets and variables → Actions 配两个 Secret）：
+
+| Secret | 值 |
+|---|---|
+| `SSH_HOST` | 服务器 IP |
+| `SSH_PRIVATE_KEY` | 部署私钥全文（对应服务器 `~/.ssh/authorized_keys` 里的公钥，`ed25519`） |
+
+服务器侧一次性准备：
+
+```bash
+# 1. 服务器装好 docker + compose（首次）
+# 2. 放置密钥（gitignored，仅在服务器上手动放一次，CI 不动它）
+scp backend/.env.example root@<服务器>:/root/ChaYu-BAMA/backend/.env   # 再填入 LLM_API_KEY / IMAGE_API_KEY 等
+# 3. 放行 8080：阿里云安全组入方向加 TCP 8080 / 0.0.0.0/0（OS ufw inactive，安全组是唯一卡点）
+```
+
+准备就绪后，`git push origin main` 即触发部署。访问 `http://<服务器IP>:8080`。
+
+> 阿里云 ECS 的安全组在 OS 防火墙之外独立拦截：`ufw inactive`、`iptables ACCEPT`，但安全组未放行 8080 时外网会连接超时（服务器内 `curl localhost:8080` 正常）。80/443 能访问是因为博客部署时已放行。
+
+### 方式二：手动部署
+
 ```bash
 # 1. 服务器上 clone 仓库
 git clone <repo> && cd ChaYu-BAMA
@@ -73,6 +99,12 @@ docker compose up -d --build
 ```
 
 > 上线前应收紧 CORS（当前 `allow_origins=["*"]` 为 Demo 联调期放开）与 `/api/health-llm` 调试接口的访问控制。
+
+## CI/CD
+
+GitHub Actions：`.github/workflows/deploy.yml`。推 `main`（或 Actions 页手动触发）→ 在 GitHub runner 上用 `webfactory/ssh-agent` 注入部署密钥 → SSH 登服务器跑 `scripts/deploy-remote.sh`：`git reset --hard origin/main` + `docker compose up -d --build`。并发控制：`concurrency: deploy-server`，新触发排队不中断进行中的部署。
+
+依赖仓库 Secret：`SSH_HOST`、`SSH_PRIVATE_KEY`（部署私钥，公钥在服务器 `authorized_keys`）。`backend/.env` 不进 Git、CI 不动它（仅在服务器上手动放一次）。
 
 ## 文档
 
