@@ -1139,7 +1139,7 @@ function handleOption(act,lbl){
     }).catch(e=>{
       S.typing=false;
       S.typingText="茶语正在努力输入中…";
-      pushMsg("assistant",(e.fallback?"":"生成失败：")+e.message,e.fallback?"fallback":"error");
+      pushMsg("assistant",e.message,e.fallback?"fallback":"error");
       S.stage="done";
       saveCurrentToHistory();
       paintMessages();
@@ -1163,7 +1163,7 @@ function handleOption(act,lbl){
         S.stage="done";saveCurrentToHistory();paintMessages();
       }).catch(e=>{
         S.typing=false;S.typingText="茶语正在努力输入中…";
-        pushMsg("assistant",(e.fallback?"":"物料生成失败：")+e.message,e.fallback?"fallback":"error");
+        pushMsg("assistant",e.message,e.fallback?"fallback":"error");
         S.stage="done";saveCurrentToHistory();paintMessages();
       });
       return;
@@ -1180,7 +1180,7 @@ function handleOption(act,lbl){
       const imagePrompt=ad.image_prompt;
       const traceId=ad.trace_id;
       if(!imagePrompt){
-        throw new Error("后端未返回 image_prompt");
+        throw new Error("物料文案准备异常，请稍后重试或重新选择茶品");
       }
       S.typingText=S.mat.modality==="video"?"正在生成视频物料，预计需要几分钟…":"正在生成图片，通常需要 1-2 分钟，请稍候…";paintMessages();
       return BAMA_API.imageGenerate(imagePrompt, S.mat.teaCategory||"赛珍珠浓香型安溪铁观音", S.mat, routeId, assetEdition).then(imgRes=>{
@@ -1212,7 +1212,7 @@ function handleOption(act,lbl){
     }).catch(e=>{
       S.typing=false;
       S.typingText="茶语正在努力输入中…";
-      pushMsg("assistant",(e.fallback?"":"物料生成失败：")+e.message,e.fallback?"fallback":"error");
+      pushMsg("assistant",e.message,e.fallback?"fallback":"error");
       S.stage="done";
       saveCurrentToHistory();
       paintMessages();
@@ -1270,7 +1270,7 @@ function sendUserInput(text){
   }).catch(e=>{
     S.typing=false;
     S.typingText="茶语正在努力输入中…";
-    pushMsg("assistant",(e.fallback?"":"生成失败：")+e.message,e.fallback?"fallback":"error");
+    pushMsg("assistant",e.message,e.fallback?"fallback":"error");
     S.stage="done";
     saveCurrentToHistory();
     paintMessages();
@@ -1291,7 +1291,7 @@ function handleMaterialChat(text, isOvs){
     const imagePrompt=ad.image_prompt;
     const traceId=ad.trace_id;
     if(!imagePrompt){
-      throw new Error("后端未返回 image_prompt");
+      throw new Error("物料文案准备异常，请稍后重试或重新选择茶品");
     }
     S.typingText="正在生成图片，通常需要 1-2 分钟，请稍候…";paintMessages();
     return BAMA_API.imageGenerate(imagePrompt, S.mat.teaCategory||"赛珍珠浓香型安溪铁观音", S.mat, routeId, assetEdition).then(imgRes=>{
@@ -1323,7 +1323,7 @@ function handleMaterialChat(text, isOvs){
   }).catch(e=>{
     S.typing=false;
     S.typingText="茶语正在努力输入中…";
-    pushMsg("assistant",(e.fallback?"":"物料生成失败：")+e.message,e.fallback?"fallback":"error");
+    pushMsg("assistant",e.message,e.fallback?"fallback":"error");
     S.stage="done";
     saveCurrentToHistory();
     paintMessages();

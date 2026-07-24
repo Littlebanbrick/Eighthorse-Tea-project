@@ -31,17 +31,25 @@ const BAMA_API=(function(){
     try{
       res=await fetch(url, opts);
     }catch(e){
-      throw new Error("网络请求失败："+e.message+(BASE?"（请确认后端已启动在 "+BASE+"）":"（请确认网关已反代 /api 到后端）"));
+      // 技术细节留 console，给用户看友好文案。
+      const hint=BASE?"（请确认后端已启动在 "+BASE+"）":"（请确认网关已反代 /api 到后端）";
+      console.warn("[BAMA_API] 网络请求失败:", e.message, hint);
+      throw new Error("网络连接开小差了，请稍后重试");
     }
     let json;
     try{
       json=await res.json();
     }catch(e){
-      throw new Error("响应解析失败：HTTP "+res.status);
+      console.warn("[BAMA_API] 响应解析失败: HTTP", res.status);
+      throw new Error("服务暂时返回了异常内容，请稍后重试");
     }
     if(!res.ok||!json.success){
-      const msg=json.error&&json.error.message?("后端错误["+json.error.code+"]："+json.error.message):("HTTP "+res.status);
-      throw new Error(msg);
+      const beMsg=json.error&&json.error.message;
+      const code=json.error&&json.error.code;
+      console.warn("[BAMA_API] 后端错误:", code, beMsg, "HTTP", res.status);
+      // 优先用后端已写好的用户向 message（如「未找到对应茶品」）；没有则通用兜底。
+      // 不再暴露 [CODE] 前缀给用户。
+      throw new Error(beMsg||"服务暂时出了点问题，请稍后重试");
     }
     // 后端未开放能力返回 success:true + meta.fallback:true + data.message。
     // 这里统一拦截：fallback 时抛带 message 的 Error，让调用方走 .catch 展示友好提示，
@@ -49,8 +57,9 @@ const BAMA_API=(function(){
     const meta=json.meta||{};
     if(meta.fallback){
       const data=json.data||{};
-      const reason=meta.fallback_reason?(" ["+meta.fallback_reason+"]"):"";
-      const msg=(data.title?data.title+"：" :"")+(data.message||"该能力 Demo 阶段暂未开放")+reason;
+      // fallback_reason 是内部诊断码，不展示给用户；技术细节留 console。
+      console.warn("[BAMA_API] fallback:", meta.fallback_reason);
+      const msg=(data.title?data.title+"：" :"")+(data.message||"该能力 Demo 阶段暂未开放");
       const err=new Error(msg);
       err.fallback=true;
       err.fallbackData=data;
@@ -73,7 +82,10 @@ const BAMA_API=(function(){
   function getTeaId(teaName){
     const id=TEA_ID_MAP[teaName];
     if(!id){
-      throw new Error("未在 /api/teas 找到茶品「"+teaName+"」的映射，拒绝兜底");
+      // 用户向：不提"映射 / 兜底 / /api/teas"等内部措辞。
+      const shown=teaName?("「"+teaName+"」"):"该茶品";
+      console.warn("[BAMA_API] 茶品映射缺失:", teaName||"(空)");
+      throw new Error("茶语暂时找不到"+shown+"的信息，请重新选择茶品后再试");
     }
     return id;
   }
