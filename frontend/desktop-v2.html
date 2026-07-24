@@ -245,6 +245,9 @@ input,textarea{font-family:inherit}
 .msg.fallback .msg-bubble::before{content:"◇ 能力未开放";display:block;font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--goldD);margin-bottom:4px;opacity:.9}
 .msg.image .msg-bubble{padding:0;background:transparent;border:none;max-width:320px}
 .msg.image img{width:100%;border-radius:12px;border:1px solid rgba(184,147,90,.3);display:block}
+.msg.image .img-expired{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;width:100%;min-height:160px;border-radius:12px;border:1px dashed rgba(184,147,90,.5);background:rgba(184,147,90,.08);color:var(--goldD);font-size:13px}
+.msg.image .img-expired svg{width:30px;height:30px;color:var(--gold);opacity:.8}
+.msg.image .img-expired .hint{font-size:11px;color:rgba(184,147,90,.7)}
 .msg.image .caption{margin-top:8px;font-size:12px;color:rgba(212,115,79,.6);text-align:center}
 .msg-opts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .msg-opt{padding:6px 12px;border-radius:999px;border:1px solid rgba(184,147,90,.3);background:var(--paper);font-size:12px;color:var(--brothD);transition:all .15s}
@@ -989,7 +992,14 @@ function renderChatArea(){
     const isUser=m.role==="user";
     const av=isUser?"你":"语";
     if(m.type==="image"){
-      html+=`<div class="msg image"><div class="msg-av">${av}</div><div class="msg-bubble"><img src="${escapeAttr(m.imagePrompt)}" alt="物料预览" loading="lazy"/><div class="caption">${escapeHtml(m.content)}</div>${renderTraceChain(m.trace)}</div></div>`;
+      // 图片 URL 来自后端 Ark 临时链接（30 天有效），过期会裂图。
+      // 用 onerror 兜底：加载失败时换成「图片已过期」占位，不留裂图。
+      const imgSrc=m.imagePrompt;
+      const hasImg=typeof imgSrc==="string"&&imgSrc.startsWith("http");
+      const imgHtml=hasImg
+        ?`<img src="${escapeAttr(imgSrc)}" alt="物料预览" loading="lazy" onerror="replaceWithExpiredImg(this)"/>`
+        :`<div class="img-expired">${svg("img")}<span>图片已过期</span><span class="hint">该图片链接已失效</span></div>`;
+      html+=`<div class="msg image"><div class="msg-av">${av}</div><div class="msg-bubble">${imgHtml}<div class="caption">${escapeHtml(m.content)}</div>${renderTraceChain(m.trace)}</div></div>`;
       return;
     }
     let body=m.content;
@@ -1439,6 +1449,16 @@ function pushMessage(m){
   m.timestamp=Date.now();
   S.messages.push(m);
   saveStateToStorage();
+}
+
+// 图片加载失败（Ark 临时链接 30 天过期 / 失效）→ 换「图片已过期」占位，不留裂图。
+// 独立函数供 <img onerror> 调用，避免内联字符串里的转义地狱。
+function replaceWithExpiredImg(imgEl){
+  if(!imgEl||!imgEl.parentNode)return;
+  const ph=document.createElement("div");
+  ph.className="img-expired";
+  ph.innerHTML=svg("img")+"<span>图片已过期</span><span class=\"hint\">该图片链接已失效，可重新生成物料</span>";
+  imgEl.parentNode.replaceChild(ph, imgEl);
 }
 
 function renderModal(){
